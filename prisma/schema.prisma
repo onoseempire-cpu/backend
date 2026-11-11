@@ -1,0 +1,467 @@
+// ============================================================================
+// PMAV - Prisma Schema (SQLite)
+// File-based local database — no server required, works on any Windows PC
+// ============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ── USERS & AUTH ─────────────────────────────────────────────────────────────
+
+model User {
+  id                String    @id @default(uuid())
+  email             String    @unique
+  passwordHash      String
+  displayName       String?
+  avatarUrl         String?
+  role              String    @default("user") // user | admin
+  emailVerified     Boolean   @default(false)
+  emailVerifyToken  String?
+  passwordResetToken String?
+  passwordResetExpires DateTime?
+  isActive          Boolean   @default(true)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  // Relations
+  sessions          Session[]
+  connectedAccounts ConnectedAccount[]
+  indexingJobs      IndexingJob[]
+  crawlerJobs       CrawlerJob[]
+  analyticalReports AnalyticalReport[]
+  notifications     Notification[]
+  auditLogs         AuditLog[]
+  searchHistory     SearchHistory[]
+
+  @@index([email])
+}
+
+model Session {
+  id           String   @id @default(uuid())
+  userId       String
+  refreshToken String   @unique
+  expiresAt    DateTime
+  ipAddress    String?
+  userAgent    String?
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([refreshToken])
+}
+
+// ── CONNECTED ACCOUNTS ───────────────────────────────────────────────────────
+
+model ConnectedAccount {
+  id               String   @id @default(uuid())
+  userId           String
+  provider         String   // youtube-data | youtube-analytics | youtube-reporting | google-analytics | adsense | search-console
+  providerAccountId String
+  displayName      String?
+  email            String?
+  profileImageUrl  String?
+  status           String   @default("active") // active | disconnected | error | refreshing
+  lastSyncAt       DateTime?
+  errorMessage     String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  user             User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  oauthCredentials OAuthCredential[]
+  youtubeChannels  YouTubeChannel[]
+  gaProperties     GoogleAnalyticsProperty[]
+  analyticsMetrics AnalyticsMetric[]
+
+  @@unique([userId, provider, providerAccountId])
+  @@index([userId])
+  @@index([provider])
+}
+
+model OAuthCredential {
+  id                 String   @id @default(uuid())
+  connectedAccountId String
+  accessToken        String   // AES-256 encrypted
+  refreshToken       String?  // AES-256 encrypted
+  idToken            String?  // AES-256 encrypted
+  expiresAt          DateTime?
+  scopes             String   // JSON array as string
+  tokenType          String   @default("Bearer")
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  connectedAccount ConnectedAccount @relation(fields: [connectedAccountId], references: [id], onDelete: Cascade)
+
+  @@unique([connectedAccountId])
+  @@index([connectedAccountId])
+}
+
+// ── YOUTUBE DATA ─────────────────────────────────────────────────────────────
+
+model YouTubeChannel {
+  id                 String   @id @default(uuid())
+  connectedAccountId String
+  channelId          String   @unique
+  title              String
+  description        String?
+  customUrl          String?
+  thumbnailUrl       String?
+  country            String?
+  language           String?
+  subscriberCount    Int?
+  subscriberHidden   Boolean  @default(false)
+  viewCount          Int?
+  videoCount         Int?
+  publishedAt        DateTime?
+  lastFetchedAt      DateTime?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  connectedAccount ConnectedAccount @relation(fields: [connectedAccountId], references: [id], onDelete: Cascade)
+  videos           YouTubeVideo[]
+  channelMetrics   YouTubeChannelMetric[]
+
+  @@index([connectedAccountId])
+  @@index([channelId])
+}
+
+model YouTubeVideo {
+  id               String   @id @default(uuid())
+  channelId        String
+  videoId          String   @unique
+  title            String
+  description      String?
+  thumbnailUrl     String?
+  publishedAt      DateTime?
+  duration         String?  // ISO 8601 duration e.g. PT4M13S
+  privacyStatus    String?
+  viewCount        Int?
+  likeCount        Int?
+  dislikeCount     Int?
+  commentCount     Int?
+  favoriteCount    Int?
+  tags             String?  // JSON array as string
+  categoryId       String?
+  defaultLanguage  String?
+  lastFetchedAt    DateTime?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  channel        YouTubeChannel  @relation(fields: [channelId], references: [channelId], onDelete: Cascade)
+  videoMetrics   YouTubeVideoMetric[]
+
+  @@index([channelId])
+  @@index([videoId])
+  @@index([publishedAt])
+}
+
+model YouTubeChannelMetric {
+  id             String   @id @default(uuid())
+  channelId      String
+  date           String   // YYYY-MM-DD
+  views          Int?
+  redViews       Int?
+  estimatedMinutesWatched Int?
+  estimatedRedMinutesWatched Int?
+  averageViewDuration Int?
+  averageViewPercentage Float?
+  subscribersGained Int?
+  subscribersLost  Int?
+  videosAddedToPlaylists Int?
+  videosRemovedFromPlaylists Int?
+  shares         Int?
+  likes          Int?
+  dislikes       Int?
+  comments       Int?
+  impressions    Int?
+  impressionClickThroughRate Float?
+  estimatedRevenue Float?
+  estimatedAdRevenue Float?
+  estimatedRedPartnerRevenue Float?
+  grossRevenue   Float?
+  monetizedPlaybacks Int?
+  cpm            Float?
+  adImpressions  Int?
+  createdAt      DateTime @default(now())
+
+  channel YouTubeChannel @relation(fields: [channelId], references: [channelId], onDelete: Cascade)
+
+  @@unique([channelId, date])
+  @@index([channelId])
+  @@index([date])
+}
+
+model YouTubeVideoMetric {
+  id             String   @id @default(uuid())
+  videoId        String
+  date           String   // YYYY-MM-DD
+  views          Int?
+  estimatedMinutesWatched Int?
+  averageViewDuration Int?
+  averageViewPercentage Float?
+  subscribersGained Int?
+  subscribersLost  Int?
+  shares         Int?
+  likes          Int?
+  dislikes       Int?
+  comments       Int?
+  impressions    Int?
+  impressionClickThroughRate Float?
+  estimatedRevenue Float?
+  estimatedAdRevenue Float?
+  monetizedPlaybacks Int?
+  cpm            Float?
+  annotationClickThroughRate Float?
+  annotationCloseRate Float?
+  createdAt      DateTime @default(now())
+
+  video YouTubeVideo @relation(fields: [videoId], references: [videoId], onDelete: Cascade)
+
+  @@unique([videoId, date])
+  @@index([videoId])
+  @@index([date])
+}
+
+// ── GOOGLE ANALYTICS ─────────────────────────────────────────────────────────
+
+model GoogleAnalyticsProperty {
+  id                 String   @id @default(uuid())
+  connectedAccountId String
+  propertyId         String   @unique // GA4 property ID e.g. properties/123456789
+  displayName        String
+  timezone           String?
+  currencyCode       String?
+  industryCategory   String?
+  serviceLevel       String?
+  createTime         DateTime?
+  lastFetchedAt      DateTime?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  connectedAccount ConnectedAccount @relation(fields: [connectedAccountId], references: [id], onDelete: Cascade)
+  gaMetrics        GoogleAnalyticsMetric[]
+
+  @@index([connectedAccountId])
+  @@index([propertyId])
+}
+
+model GoogleAnalyticsMetric {
+  id           String   @id @default(uuid())
+  propertyId   String
+  date         String   // YYYY-MM-DD
+  sessions     Int?
+  users        Int?
+  newUsers     Int?
+  activeUsers  Int?
+  pageViews    Int?
+  screenViews  Int?
+  bounceRate   Float?
+  sessionDuration Float?
+  eventsPerSession Float?
+  engagementRate Float?
+  conversions  Int?
+  revenue      Float?
+  source       String?  // JSON: traffic sources
+  medium       String?
+  campaign     String?
+  country      String?  // JSON: top countries
+  deviceCategory String?
+  topPages     String?  // JSON array of top pages
+  createdAt    DateTime @default(now())
+
+  property GoogleAnalyticsProperty @relation(fields: [propertyId], references: [propertyId], onDelete: Cascade)
+
+  @@unique([propertyId, date])
+  @@index([propertyId])
+  @@index([date])
+}
+
+// ── ANALYTICS METRICS (generic store) ────────────────────────────────────────
+
+model AnalyticsMetric {
+  id                 String   @id @default(uuid())
+  connectedAccountId String
+  metricType         String   // e.g. subscribers | views | revenue | sessions
+  source             String   // youtube | google-analytics | adsense | search-console
+  date               String   // YYYY-MM-DD
+  value              Float
+  metadata           String?  // JSON blob for extra context
+  createdAt          DateTime @default(now())
+
+  connectedAccount ConnectedAccount @relation(fields: [connectedAccountId], references: [id], onDelete: Cascade)
+
+  @@unique([connectedAccountId, metricType, source, date])
+  @@index([connectedAccountId])
+  @@index([source])
+  @@index([date])
+}
+
+// ── INDEXED RECORDS ───────────────────────────────────────────────────────────
+
+model IndexedRecord {
+  id           String   @id @default(uuid())
+  userId       String
+  source       String   // youtube | google-analytics | adsense | search-console
+  recordType   String   // channel | video | metric | report | property
+  externalId   String   // The ID from the external platform
+  dataJson     String   // Full JSON snapshot of the record
+  checksum     String?  // MD5 of dataJson for change detection
+  indexedAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([userId, source, recordType, externalId])
+  @@index([userId])
+  @@index([source])
+  @@index([recordType])
+  @@index([indexedAt])
+}
+
+// ── INDEXER JOBS ──────────────────────────────────────────────────────────────
+
+model IndexingJob {
+  id               String   @id @default(uuid())
+  userId           String
+  jobType          String   // manual | scheduled | incremental | full-reindex
+  status           String   @default("pending") // pending | running | completed | failed | cancelled
+  sources          String?  // JSON array: ["youtube", "google-analytics"]
+  startedAt        DateTime?
+  completedAt      DateTime?
+  recordsDiscovered Int     @default(0)
+  recordsProcessed  Int     @default(0)
+  recordsSkipped    Int     @default(0)
+  recordsFailed     Int     @default(0)
+  progressPercent   Int     @default(0)
+  currentStep       String?
+  errorMessage      String?
+  logJson           String? // JSON array of log entries
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+// ── CRAWLER JOBS ──────────────────────────────────────────────────────────────
+
+model CrawlerJob {
+  id              String   @id @default(uuid())
+  userId          String
+  jobType         String   // discover | sync | update | historical
+  status          String   @default("pending") // pending | running | paused | completed | failed | cancelled
+  sources         String?  // JSON array
+  startedAt       DateTime?
+  completedAt     DateTime?
+  pausedAt        DateTime?
+  retries         Int      @default(0)
+  maxRetries      Int      @default(3)
+  itemsDiscovered Int      @default(0)
+  itemsProcessed  Int      @default(0)
+  itemsUpdated    Int      @default(0)
+  itemsFailed     Int      @default(0)
+  progressPercent Int      @default(0)
+  currentStep     String?
+  lastError       String?
+  logJson         String?  // JSON array of log entries
+  metadata        String?  // JSON blob
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+// ── ANALYTICAL REPORTS ────────────────────────────────────────────────────────
+
+model AnalyticalReport {
+  id          String   @id @default(uuid())
+  userId      String
+  title       String
+  reportType  String   // overview | youtube | google-analytics | adsense | search-console | comparison | ai-search
+  source      String?  // Which connected account
+  dateFrom    String?  // YYYY-MM-DD
+  dateTo      String?  // YYYY-MM-DD
+  dataJson    String   // Full report payload as JSON
+  queryText   String?  // If generated by AI search, the original question
+  exportedAt  DateTime?
+  createdAt   DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([reportType])
+  @@index([createdAt])
+}
+
+// ── NOTIFICATIONS ─────────────────────────────────────────────────────────────
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  type      String   // info | success | warning | error | sync | indexing | crawler
+  title     String
+  message   String
+  isRead    Boolean  @default(false)
+  metadata  String?  // JSON blob
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([isRead])
+  @@index([createdAt])
+}
+
+// ── AUDIT LOG ─────────────────────────────────────────────────────────────────
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  userId     String?
+  action     String   // e.g. user.login | account.connect | indexing.start
+  resource   String?  // e.g. connected_account | youtube_video
+  resourceId String?
+  metadata   String?  // JSON blob
+  ipAddress  String?
+  userAgent  String?
+  success    Boolean  @default(true)
+  errorMsg   String?
+  createdAt  DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+}
+
+// ── AI SEARCH HISTORY ─────────────────────────────────────────────────────────
+
+model SearchHistory {
+  id              String   @id @default(uuid())
+  userId          String
+  queryText       String
+  parsedIntent    String?  // JSON: parsed NLP result
+  resultSummary   String?
+  resultDataJson  String?  // JSON: chart/table data
+  responseTimeMs  Int?
+  hasResults      Boolean  @default(true)
+  createdAt       DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([createdAt])
+}
