@@ -15,10 +15,7 @@ export class AdSenseService {
     try {
       const response = await adsense.accounts.reports.generate({
         account: 'accounts/pub-XXXXXXXXXXXXXXXX', // TODO: Get from account
-        dateRange: {
-          startDate: formatDate(startDate),
-          endDate: formatDate(endDate),
-        },
+        dateRange: `${formatDate(startDate)},${formatDate(endDate)}`,
         metrics: ['EARNINGS', 'PAGE_VIEWS', 'CLICKS', 'CTR', 'RPM'],
         dimensions: ['DATE'],
       });
