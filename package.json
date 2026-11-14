@@ -2,10 +2,10 @@
   "name": "pmav-backend",
   "version": "1.0.0",
   "description": "Program Maker Analytical Viewer Backend - Real-time analytics infrastructure",
-  "main": "dist/index.js",
+  "main": "dist/server.js",
   "scripts": {
     "build": "tsc",
-    "start": "node dist/index.js",
+    "start": "node dist/server.js",
     "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
     "prisma": "prisma",
     "prisma:generate": "prisma generate",
