@@ -247,6 +247,13 @@ export interface SearchHistoryEntry {
   createdAt: string;
 }
 
+// ── AI Query Types ───────────────────────────────────────────────────────────
+
+export interface QueryResult {
+  data: any;
+  found: boolean;
+}
+
 // ── Indexer / Crawler ────────────────────────────────────────────────────────
 
 export interface IndexingJobStatus {

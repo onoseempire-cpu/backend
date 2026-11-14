@@ -1,6 +1,6 @@
 import type { ParsedQuery } from './query-parser';
 import type { QueryResult } from './query-executor';
-import type { AISearchResult } from '../../types/api';
+import type { AISearchResult, ParsedQuery as ParsedQueryType } from '../../types/api';
 
 const formatNumber = (n: number | null | undefined, unit = ''): string => {
   if (n === null || n === undefined) return 'N/A';
@@ -9,7 +9,7 @@ const formatNumber = (n: number | null | undefined, unit = ''): string => {
   return `${n.toLocaleString()} ${unit}`.trim();
 };
 
-const buildNarrativeAnswer = (parsed: ParsedQuery, result: QueryResult): string => {
+const buildNarrativeAnswer = (parsed: ParsedQueryType, result: QueryResult): string => {
   if (!result.found) return result.disclaimer ?? 'No data available for this query.';
 
   const { period } = result;
@@ -77,7 +77,7 @@ const buildNarrativeAnswer = (parsed: ParsedQuery, result: QueryResult): string 
   }
 };
 
-const buildResultData = (parsed: ParsedQuery, result: QueryResult): AISearchResult['data'] => {
+const buildResultData = (parsed: ParsedQueryType, result: QueryResult): AISearchResult['data'] => {
   if (result.rows && result.rows.length > 0) {
     const columns = Object.keys(result.rows[0]);
     return { type: 'table', rows: result.rows, columns };
@@ -101,7 +101,7 @@ const buildResultData = (parsed: ParsedQuery, result: QueryResult): AISearchResu
 };
 
 export const formatResponse = (
-  parsed: ParsedQuery,
+  parsed: ParsedQueryType,
   result: QueryResult
 ): AISearchResult => {
   return {
