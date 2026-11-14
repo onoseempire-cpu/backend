@@ -8,59 +8,62 @@ export class YouTubeAnalyticsService {
     const auth = await getAuthenticatedClient(connectedAccountId);
     const youtubeAnalytics = google.youtubeAnalytics({ version: 'v2', auth });
 
+    const channels = await prisma.youTubeChannel.findMany({
+      where: { connectedAccountId },
+      select: { channelId: true },
+    });
+    if (channels.length === 0) {
+      logger.warn('No YouTube channels found for analytics sync', { connectedAccountId });
+      return;
+    }
+
     const endDate = new Date();
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - days);
-
-    const formatDate = (d: Date) => d.toISOString().split('T')[0];
+    const formatDate = (d: Date) => d.toISOString().slice(0, 10);
 
     const { data } = await youtubeAnalytics.reports.query({
       ids: 'channel==MINE',
       startDate: formatDate(startDate),
       endDate: formatDate(endDate),
-      metrics: 'views,estimatedMinutesWatched,averageViewDuration,averageViewPercentage,subscribersGained,subscribersLost,likes,dislikes,comments,shares,estimatedRevenue,impressions,annotationClickThroughRate,annotationCloseRate',
+      // Keep this list aligned with YouTubeChannelMetric in schema.prisma.
+      metrics: 'views,estimatedMinutesWatched,subscribersGained,subscribersLost,likes,comments,shares,estimatedRevenue,impressions,impressionClickThroughRate',
       dimensions: 'day',
       sort: 'day',
     });
 
-    for (const row of data.rows ?? []) {
-      const date = new Date(row[0] as string);
-      await prisma.youTubeChannelMetric.upsert({
-        where: { channelId_date: { channelId: row[1] as string, date } },
-        create: {
-          channelId: row[1] as string,
-          date,
-          views: row[2] as number ?? null,
-          watchTimeMinutes: row[3] as number ?? null,
-          averageViewDuration: row[4] as number ?? null,
-          averageViewPercentage: row[5] as number ?? null,
-          subscribersGained: row[6] as number ?? null,
-          subscribersLost: row[7] as number ?? null,
-          likes: row[8] as number ?? null,
-          dislikes: row[9] as number ?? null,
-          comments: row[10] as number ?? null,
-          shares: row[11] as number ?? null,
-          estimatedRevenue: row[12] as number ?? null,
-          impressions: row[13] as number ?? null,
-          ctr: row[14] as number ?? null,
-        },
-        update: {
-          views: row[2] as number ?? null,
-          watchTimeMinutes: row[3] as number ?? null,
-          averageViewDuration: row[4] as number ?? null,
-          averageViewPercentage: row[5] as number ?? null,
-          subscribersGained: row[6] as number ?? null,
-          subscribersLost: row[7] as number ?? null,
-          likes: row[8] as number ?? null,
-          dislikes: row[9] as number ?? null,
-          comments: row[10] as number ?? null,
-          shares: row[11] as number ?? null,
-          estimatedRevenue: row[12] as number ?? null,
-          impressions: row[13] as number ?? null,
-          ctr: row[14] as number ?? null,
-        },
-      });
+    for (const channel of channels) {
+      for (const row of data.rows ?? []) {
+        const date = new Date(String(row[0]));
+        if (Number.isNaN(date.getTime())) continue;
+        const numberAt = (index: number): number | null => {
+          const value = row[index];
+          if (value === null || value === undefined || value === '') return null;
+          const parsed = Number(value);
+          return Number.isFinite(parsed) ? parsed : null;
+        };
+
+        const metricData = {
+          views: numberAt(1),
+          watchTimeMinutes: numberAt(2),
+          subscribersGained: numberAt(3),
+          subscribersLost: numberAt(4),
+          likes: numberAt(5),
+          comments: numberAt(6),
+          shares: numberAt(7),
+          estimatedRevenue: numberAt(8),
+          impressions: numberAt(9),
+          ctr: numberAt(10),
+        };
+
+        await prisma.youTubeChannelMetric.upsert({
+          where: { channelId_date: { channelId: channel.channelId, date } },
+          create: { channelId: channel.channelId, date, ...metricData },
+          update: metricData,
+        });
+      }
     }
-    logger.info('Channel metrics synced', { connectedAccountId });
+
+    logger.info('YouTube channel metrics synced', { connectedAccountId, channels: channels.length });
   }
 }

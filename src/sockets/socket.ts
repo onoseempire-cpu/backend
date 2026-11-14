@@ -58,7 +58,7 @@ export const getIO = (): SocketIOServer => {
 
 export const emitToUser = (userId: string, event: string, data: unknown): void => {
   if (!io) return;
-  io.emit(event, { userId, ...data });
+  io.emit(event, { userId, ...(data && typeof data === 'object' ? data as Record<string, unknown> : { data }) });
 };
 
 export const emitToSocket = (socketId: string, event: string, data: unknown): void => {

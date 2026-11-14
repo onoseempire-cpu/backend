@@ -249,9 +249,29 @@ export interface SearchHistoryEntry {
 
 // ── AI Query Types ───────────────────────────────────────────────────────────
 
+export interface ParsedQuery {
+  intent: string;
+  source: string;
+  period: string;
+  compareWithPrevious: boolean;
+  topN: number;
+  filters: {
+    videoTitle?: string;
+    channelName?: string;
+    metric?: string;
+  };
+  confidence: 'high' | 'medium' | 'low';
+  originalQuery: string;
+  channelId?: string;
+  propertyId?: string;
+}
+
 export interface QueryResult {
   data: any;
   found: boolean;
+  disclaimer?: string;
+  source: string;
+  period: { startDate: Date; endDate: Date };
 }
 
 // ── Indexer / Crawler ────────────────────────────────────────────────────────

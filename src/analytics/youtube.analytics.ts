@@ -1,6 +1,6 @@
-import prisma from '../../config/database';
-import { YouTubeChannelSummary, YouTubeMetricTotals, YouTubeChartPoint, YouTubeTrend, YouTubeChannelAnalytics } from '../../types/api';
-import { TrendProcessor } from '../processors/trend.processor';
+import prisma from '../config/database';
+import { YouTubeChannelSummary, YouTubeMetricTotals, YouTubeChartPoint, YouTubeTrend, YouTubeChannelAnalytics } from '../types/api';
+import { TrendProcessor } from './processors/trend.processor';
 
 export class YouTubeAnalyticsEngine {
   static async getChannelAnalytics(userId: string, period: string, channelId?: string): Promise<YouTubeChannelAnalytics[]> {

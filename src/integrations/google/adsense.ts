@@ -1,6 +1,5 @@
-import prisma from '../../config/database';
+import { google } from 'googleapis';
 import { logger } from '../../utils/logger';
-import { EncryptionService } from '../services/encryption.service';
 
 export class AdSenseService {
   static async syncEarnings(connectedAccountId: string, days = 30): Promise<void> {

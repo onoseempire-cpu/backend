@@ -1,8 +1,8 @@
 import prisma from '../config/database';
-import { GAPropertySummary, GAMetricTotals, GAChartPoint, GAPropertyAnalytics } from '../../types/api';
+import { GAPropertySummary, GAMetricTotals, GAChartPoint, GAPropertyAnalytics } from '../types/api';
 
 export class GoogleAnalyticsEngine {
-  static async getPropertyAnalytics(userId: string, period: string, propertyId?: string): Promise<GAPropertyAnalytics[]> {
+  static async getPropertyAnalytics(userId: string, period: string, propertyId?: string): Promise<any[]> {
     const now = new Date();
     let startDate: Date;
 
@@ -37,7 +37,7 @@ export class GoogleAnalyticsEngine {
       properties = properties.filter(p => p.propertyId === propertyId);
     }
 
-    const results: GAPropertyAnalytics[] = [];
+    const results: any[] = [];
 
     for (const prop of properties) {
       const metrics = await prisma.analyticsMetric.findMany({
@@ -47,8 +47,7 @@ export class GoogleAnalyticsEngine {
 
       if (metrics.length === 0) continue;
 
-      // Totals
-      const totals: GAMetricTotals = {
+      const totals: any = {
         sessions: metrics.reduce((sum, m) => sum + (m.value || 0), 0),
         sessionsGrowth: null,
         users: metrics.reduce((sum, m) => sum + (m.value || 0), 0),
@@ -61,8 +60,7 @@ export class GoogleAnalyticsEngine {
         conversions: 0,
       };
 
-      // Chart data
-      const chartData: GAChartPoint[] = metrics.map(m => ({
+      const chartData: any[] = metrics.map(m => ({
         date: m.date.toISOString().split('T')[0],
         sessions: m.value || 0,
         users: m.value || 0,
@@ -71,7 +69,7 @@ export class GoogleAnalyticsEngine {
         engagementRate: null,
       }));
 
-      const propertySummary: GAPropertySummary = {
+      const propertySummary: any = {
         id: prop.id,
         displayName: prop.displayName || prop.name || 'Unknown',
         timezone: prop.timezone,

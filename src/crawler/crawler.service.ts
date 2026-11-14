@@ -1,5 +1,5 @@
-import prisma from '../../config/database';
-import { logger } from '../../utils/logger';
+import prisma from '../config/database';
+import { logger } from '../utils/logger';
 
 export type CrawlerJobType = 'sync' | 'discover' | 'update' | 'full_reindex';
 
@@ -119,7 +119,7 @@ export class CrawlerService {
           logs.push(`Crawl paused at account ${account.provider}`);
           await prisma.crawlerJob.update({
             where: { id: jobId },
-            data: { status: 'paused', currentStep: 'Paused', progressPercent, itemsProcessed, itemsUpdated, itemsFailed, logJson: JSON.stringify(logs) },
+            data: { status: 'paused', currentStep: 'Paused', progressPercent: currentStep, itemsProcessed, itemsUpdated, itemsFailed, logJson: JSON.stringify(logs) },
           });
           return;
         }

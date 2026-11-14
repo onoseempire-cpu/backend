@@ -21,10 +21,12 @@ export class SearchConsoleService {
 
       const { data } = await searchconsole.searchanalytics.query({
         siteUrl: site.siteUrl,
-        startDate: formatDate(startDate),
-        endDate: formatDate(endDate),
-        dimensions: ['date', 'query', 'page'],
-        rowLimit: 1000,
+        requestBody: {
+          startDate: formatDate(startDate),
+          endDate: formatDate(endDate),
+          dimensions: ['date', 'query', 'page'],
+          rowLimit: 1000,
+        },
       });
 
       // TODO: Store search analytics data

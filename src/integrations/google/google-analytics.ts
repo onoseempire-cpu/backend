@@ -46,23 +46,28 @@ export class GoogleAnalyticsService {
     });
 
     for (const prop of properties) {
-      const [report] = await analyticsData.properties.runReport({
+      const { data: report } = await analyticsData.properties.runReport({
         property: `properties/${prop.propertyId}`,
-        dateRanges: [{ startDate: formatDate(startDate), endDate: formatDate(endDate) }],
-        dimensions: [{ name: 'date' }],
-        metrics: [
-          { name: 'sessions' },
-          { name: 'totalUsers' },
-          { name: 'newUsers' },
-          { name: 'screenPageViews' },
-          { name: 'bounceRate' },
-          { name: 'userEngagementDuration' },
-          { name: 'conversions' },
-        ],
+        requestBody: {
+          dateRanges: [{ startDate: formatDate(startDate), endDate: formatDate(endDate) }],
+          dimensions: [{ name: 'date' }],
+          metrics: [
+            { name: 'sessions' },
+            { name: 'totalUsers' },
+            { name: 'newUsers' },
+            { name: 'screenPageViews' },
+            { name: 'bounceRate' },
+            { name: 'engagementRate' },
+            { name: 'conversions' },
+          ],
+        },
       });
 
       for (const row of report.rows ?? []) {
-        const date = new Date(row.dimensionValues?.[0]?.value ?? '');
+        const rawDate = row.dimensionValues?.[0]?.value ?? '';
+        const date = /^\\d{8}$/.test(rawDate)
+          ? new Date(`${rawDate.slice(0, 4)}-${rawDate.slice(4, 6)}-${rawDate.slice(6, 8)}T00:00:00.000Z`)
+          : new Date(rawDate);
         if (isNaN(date.getTime())) continue;
 
         await prisma.googleAnalyticsMetric.upsert({
@@ -70,22 +75,22 @@ export class GoogleAnalyticsService {
           create: {
             propertyId: prop.propertyId,
             date,
-            sessions: parseInt(row.metricValues?.[0]?.value ?? '0') || null,
-            users: parseInt(row.metricValues?.[1]?.value ?? '0') || null,
-            newUsers: parseInt(row.metricValues?.[2]?.value ?? '0') || null,
-            pageViews: parseInt(row.metricValues?.[3]?.value ?? '0') || null,
-            bounceRate: parseFloat(row.metricValues?.[4]?.value ?? '0') || null,
-            engagementRate: parseFloat(row.metricValues?.[5]?.value ?? '0') || null,
-            conversions: parseInt(row.metricValues?.[6]?.value ?? '0') || null,
+            sessions: (row.metricValues?.[0]?.value == null ? null : Number(row.metricValues[0].value)),
+            users: (row.metricValues?.[1]?.value == null ? null : Number(row.metricValues[1].value)),
+            newUsers: (row.metricValues?.[2]?.value == null ? null : Number(row.metricValues[2].value)),
+            pageViews: (row.metricValues?.[3]?.value == null ? null : Number(row.metricValues[3].value)),
+            bounceRate: (row.metricValues?.[4]?.value == null ? null : Number(row.metricValues[4].value)),
+            engagementRate: (row.metricValues?.[5]?.value == null ? null : Number(row.metricValues[5].value)),
+            conversions: (row.metricValues?.[6]?.value == null ? null : Number(row.metricValues[6].value)),
           },
           update: {
-            sessions: parseInt(row.metricValues?.[0]?.value ?? '0') || null,
-            users: parseInt(row.metricValues?.[1]?.value ?? '0') || null,
-            newUsers: parseInt(row.metricValues?.[2]?.value ?? '0') || null,
-            pageViews: parseInt(row.metricValues?.[3]?.value ?? '0') || null,
-            bounceRate: parseFloat(row.metricValues?.[4]?.value ?? '0') || null,
-            engagementRate: parseFloat(row.metricValues?.[5]?.value ?? '0') || null,
-            conversions: parseInt(row.metricValues?.[6]?.value ?? '0') || null,
+            sessions: (row.metricValues?.[0]?.value == null ? null : Number(row.metricValues[0].value)),
+            users: (row.metricValues?.[1]?.value == null ? null : Number(row.metricValues[1].value)),
+            newUsers: (row.metricValues?.[2]?.value == null ? null : Number(row.metricValues[2].value)),
+            pageViews: (row.metricValues?.[3]?.value == null ? null : Number(row.metricValues[3].value)),
+            bounceRate: (row.metricValues?.[4]?.value == null ? null : Number(row.metricValues[4].value)),
+            engagementRate: (row.metricValues?.[5]?.value == null ? null : Number(row.metricValues[5].value)),
+            conversions: (row.metricValues?.[6]?.value == null ? null : Number(row.metricValues[6].value)),
           },
         });
       }

@@ -1,6 +1,6 @@
 import * as cron from 'node-cron';
 import { CrawlerService } from './crawler.service';
-import { logger } from '../../utils/logger';
+import { logger } from '../utils/logger';
 
 export class CrawlerScheduler {
   private static crawlTask: cron.ScheduledTask | null = null;
@@ -13,7 +13,7 @@ export class CrawlerScheduler {
       logger.info('Starting scheduled crawler job');
       try {
         // For each active connected account, run sync
-        const accounts = await (await import('../../config/database')).default.connectedAccount.findMany({
+        const accounts = await (await import('../config/database')).default.connectedAccount.findMany({
           where: { status: 'active' },
         });
 

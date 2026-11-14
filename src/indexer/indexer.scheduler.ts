@@ -1,6 +1,6 @@
 import * as cron from 'node-cron';
 import { IndexerService } from './indexer.service';
-import { logger } from '../../utils/logger';
+import { logger } from '../utils/logger';
 
 export class IndexerScheduler {
   private static scheduledTask: cron.ScheduledTask | null = null;
@@ -13,7 +13,7 @@ export class IndexerScheduler {
     this.scheduledTask = cron.schedule('0 2 * * *', async () => {
       logger.info('Starting scheduled full reindex');
       try {
-        const accounts = await (await import('../../config/database')).default.connectedAccount.findMany({
+        const accounts = await (await import('../config/database')).default.connectedAccount.findMany({
           where: { status: 'active' },
         });
 
@@ -29,7 +29,7 @@ export class IndexerScheduler {
     this.incrementalTask = cron.schedule('0 * * * *', async () => {
       logger.info('Starting incremental index');
       try {
-        const accounts = await (await import('../../config/database')).default.connectedAccount.findMany({
+        const accounts = await (await import('../config/database')).default.connectedAccount.findMany({
           where: { status: 'active' },
         });
 

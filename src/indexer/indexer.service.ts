@@ -1,5 +1,5 @@
-import prisma from '../../config/database';
-import { logger } from '../../utils/logger';
+import prisma from '../config/database';
+import { logger } from '../utils/logger';
 import { EncryptionService } from '../services/encryption.service';
 
 interface IndexingProgress {

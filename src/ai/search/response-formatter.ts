@@ -1,6 +1,6 @@
-import type { ParsedQuery } from './query-parser';
 import type { QueryResult } from './query-executor';
-import type { AISearchResult, ParsedQuery as ParsedQueryType } from '../../types/api';
+import type { AISearchResult } from '../../types/api';
+import type { ParsedQuery as ParsedQueryType } from './query-parser';
 
 const formatNumber = (n: number | null | undefined, unit = ''): string => {
   if (n === null || n === undefined) return 'N/A';

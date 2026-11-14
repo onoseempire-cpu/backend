@@ -30,9 +30,9 @@ export type DataSource = 'youtube' | 'google-analytics' | 'adsense' | 'search-co
 export type TimePeriod = '7d' | '28d' | '30d' | '90d' | '365d' | 'this_month' | 'last_month' | 'this_year' | 'today';
 
 export interface ParsedQuery {
-  intent: QueryIntent;
-  source: DataSource;
-  period: TimePeriod;
+  intent: string;
+  source: string;
+  period: string;
   compareWithPrevious: boolean;
   topN: number;
   filters: {
@@ -42,6 +42,8 @@ export interface ParsedQuery {
   };
   confidence: 'high' | 'medium' | 'low';
   originalQuery: string;
+  channelId?: string;
+  propertyId?: string;
 }
 
 // ── Keyword maps ──────────────────────────────────────────────────────────────
@@ -70,7 +72,7 @@ const GA_WORDS = ['google analytics', 'analytics', 'website', 'site', 'web traff
 const ADSENSE_WORDS = ['adsense', 'ad sense', 'ads', 'advertisement'];
 const SEARCH_CONSOLE_WORDS = ['search console', 'seo', 'search', 'google search', 'keyword', 'query', 'ranking'];
 
-const PERIOD_MAP: Array<[RegExp, TimePeriod]> = [
+const PERIOD_MAP: Array<[RegExp, string]> = [
   [/\btoday\b/i, 'today'],
   [/\bthis week\b/i, '7d'],
   [/\blast 7 days?\b/i, '7d'],
@@ -89,7 +91,7 @@ const PERIOD_MAP: Array<[RegExp, TimePeriod]> = [
 const contains = (q: string, words: string[]) =>
   words.some(w => q.toLowerCase().includes(w.toLowerCase()));
 
-const matchIntent = (q: string): { intent: QueryIntent; confidence: 'high' | 'medium' | 'low' } => {
+const matchIntent = (q: string): { intent: string; confidence: 'high' | 'medium' | 'low' } => {
   const lq = q.toLowerCase();
 
   // High confidence — explicit metric names
@@ -119,7 +121,7 @@ const matchIntent = (q: string): { intent: QueryIntent; confidence: 'high' | 'me
   return { intent: 'unknown', confidence: 'low' };
 };
 
-const matchSource = (q: string): DataSource => {
+const matchSource = (q: string): string => {
   const lq = q.toLowerCase();
   if (contains(lq, ADSENSE_WORDS)) return 'adsense';
   if (contains(lq, SEARCH_CONSOLE_WORDS)) return 'search-console';
@@ -128,7 +130,7 @@ const matchSource = (q: string): DataSource => {
   return 'any';
 };
 
-const matchPeriod = (q: string): TimePeriod => {
+const matchPeriod = (q: string): string => {
   for (const [pattern, period] of PERIOD_MAP) {
     if (pattern.test(q)) return period;
   }
@@ -151,9 +153,9 @@ const hasCompare = (q: string) =>
 // ── Main export ───────────────────────────────────────────────────────────────
 
 export const parseQuery = (query: string): ParsedQuery => {
+  const lq = query.toLowerCase();
   const { intent, confidence } = matchIntent(query);
 
-  // Source inference with intent override
   let source = matchSource(query);
   if (source === 'any') {
     if (['get_subscribers', 'get_watch_time', 'get_top_videos', 'get_ctr', 'get_impressions'].includes(intent)) {
@@ -172,5 +174,7 @@ export const parseQuery = (query: string): ParsedQuery => {
     filters: {},
     confidence,
     originalQuery: query,
+    channelId: undefined,
+    propertyId: undefined,
   };
 };
