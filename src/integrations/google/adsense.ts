@@ -12,14 +12,22 @@ export class AdSenseService {
 
     const formatDate = (d: Date) => d.toISOString().split('T')[0];
 
-    const { data } = await adsense.accounts.reports.generate({
-      account: 'accounts/pub-XXXXXXXXXXXXXXXX', // TODO: Get from account
-      dateRange: { startDate: formatDate(startDate), endDate: formatDate(endDate) },
-      metrics: ['EARNINGS', 'PAGE_VIEWS', 'CLICKS', 'CTR', 'RPM'],
-      dimensions: ['DATE'],
-    });
+    try {
+      const response = await adsense.accounts.reports.generate({
+        account: 'accounts/pub-XXXXXXXXXXXXXXXX', // TODO: Get from account
+        dateRange: {
+          startDate: formatDate(startDate),
+          endDate: formatDate(endDate),
+        },
+        metrics: ['EARNINGS', 'PAGE_VIEWS', 'CLICKS', 'CTR', 'RPM'],
+        dimensions: ['DATE'],
+      });
 
-    // TODO: Store earnings in database
-    logger.info('AdSense earnings synced', { connectedAccountId });
+      // TODO: Store earnings in database
+      logger.info('AdSense earnings synced', { connectedAccountId });
+    } catch (err) {
+      logger.error('AdSense sync failed', { error: err, connectedAccountId });
+      throw err;
+    }
   }
 }
