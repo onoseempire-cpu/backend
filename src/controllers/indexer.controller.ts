@@ -1,14 +1,15 @@
-import { Response, NextFunction } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import { IndexerService } from '../indexer/indexer.service';
 import { sendSuccess } from '../utils/api-response';
-import type { AuthenticatedRequest } from '../types/auth';
+import type { AuthenticatedRequest } from '../middleware/auth.middleware';
 
 export class IndexerController {
   static async start(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
+      const userId = req.user!.id;
       const { jobType = 'manual', sources } = req.body as { jobType?: string; sources?: string[] };
       const jobId = await IndexerService.startIndexing(
-        req.user.userId,
+        userId,
         jobType as Parameters<typeof IndexerService.startIndexing>[1],
         sources
       );
@@ -18,16 +19,18 @@ export class IndexerController {
 
   static async status(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
+      const userId = req.user!.id;
       const jobId = req.query.jobId as string | undefined;
-      const status = await IndexerService.getStatus(req.user.userId, jobId);
+      const status = await IndexerService.getStatus(userId, jobId);
       sendSuccess(res, status);
     } catch (err) { next(err); }
   }
 
   static async history(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
+      const userId = req.user!.id;
       const limit = parseInt(req.query.limit as string) || 20;
-      const history = await IndexerService.getHistory(req.user.userId, limit);
+      const history = await IndexerService.getHistory(userId, limit);
       sendSuccess(res, history);
     } catch (err) { next(err); }
   }

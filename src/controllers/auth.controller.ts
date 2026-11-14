@@ -1,91 +1,244 @@
-import { Request, Response, NextFunction } from 'express';
-import { z } from 'zod';
+import { Request, Response } from 'express';
 import { AuthService } from '../services/auth.service';
-import { sendSuccess, sendError } from '../utils/api-response';
-import type { AuthenticatedRequest } from '../types/auth';
-
-const RegisterSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(8, 'Password must be at least 8 characters'),
-  displayName: z.string().max(60).optional(),
-});
-
-const LoginSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(1),
-});
-
-const ResetRequestSchema = z.object({ email: z.string().email() });
-const ResetConfirmSchema = z.object({ token: z.string(), newPassword: z.string().min(8) });
-const RefreshSchema = z.object({ refreshToken: z.string() });
+import { sendError } from '../utils/api-response';
+import { AppError } from '../middleware/error-handler';
+import { AuthenticatedRequest } from '../middleware/auth.middleware';
+import { UserProfile } from '../types/api';
 
 export class AuthController {
-  static async register(req: Request, res: Response, next: NextFunction) {
+  /**
+   * User registration
+   */
+  static async register(req: Request, res: Response): Promise<void> {
     try {
-      const body = RegisterSchema.parse(req.body);
-      const result = await AuthService.register(body.email, body.password, body.displayName);
-      res.cookie('refreshToken', result.refreshToken, { httpOnly: true, sameSite: 'strict', maxAge: 7 * 24 * 60 * 60 * 1000 });
-      sendSuccess(res, { user: result.user, accessToken: result.accessToken }, 201);
-    } catch (err) { next(err); }
+      const { email, password, name } = req.body as { email: string; password: string; name?: string };
+
+      if (!email || !password) {
+        sendError(res, 400, 'VALIDATION_ERROR', 'Email and password are required');
+        return;
+      }
+
+      const result = await AuthService.register(email, password, name);
+
+      const response: UserProfile & { accessToken: string; refreshToken: string; expiresIn: number } = {
+        id: result.user.id,
+        email: result.user.email,
+        displayName: result.user.displayName,
+        avatarUrl: result.user.avatarUrl,
+        role: result.user.role,
+        emailVerified: result.user.emailVerified,
+        createdAt: result.user.createdAt,
+        accessToken: result.accessToken,
+        refreshToken: result.refreshToken,
+        expiresIn: 900,
+      };
+
+      res.status(201).json({
+        success: true,
+        data: response,
+      });
+    } catch (error) {
+      if (error instanceof AppError) {
+        sendError(res, error.statusCode, error.code, error.message);
+        return;
+      }
+      sendError(res, 500, 'REGISTRATION_FAILED', 'Failed to register user');
+    }
   }
 
-  static async login(req: Request, res: Response, next: NextFunction) {
+  /**
+   * User login
+   */
+  static async login(req: Request, res: Response): Promise<void> {
     try {
-      const body = LoginSchema.parse(req.body);
-      const ip = (req.headers['x-forwarded-for'] as string) ?? req.ip;
-      const result = await AuthService.login(body.email, body.password, ip, req.headers['user-agent']);
-      res.cookie('refreshToken', result.refreshToken, { httpOnly: true, sameSite: 'strict', maxAge: 7 * 24 * 60 * 60 * 1000 });
-      sendSuccess(res, { user: result.user, accessToken: result.accessToken });
-    } catch (err) { next(err); }
+      const { email, password } = req.body as { email: string; password: string };
+
+      if (!email || !password) {
+        sendError(res, 400, 'VALIDATION_ERROR', 'Email and password are required');
+        return;
+      }
+
+      const result = await AuthService.login(
+        email,
+        password,
+        req.ip,
+        req.get('User-Agent')
+      );
+
+      res.json({
+        success: true,
+        data: {
+          user: result.user,
+          accessToken: result.accessToken,
+          refreshToken: result.refreshToken,
+        },
+      });
+    } catch (error) {
+      if (error instanceof AppError) {
+        sendError(res, error.statusCode, error.code, error.message);
+        return;
+      }
+      sendError(res, 500, 'LOGIN_FAILED', 'Login failed');
+    }
   }
 
-  static async logout(req: Request, res: Response, next: NextFunction) {
+  /**
+   * Token refresh
+   */
+  static async refresh(req: Request, res: Response): Promise<void> {
     try {
-      const token = req.cookies?.refreshToken || RefreshSchema.parse(req.body).refreshToken;
-      await AuthService.logout(token);
-      res.clearCookie('refreshToken');
-      sendSuccess(res, { message: 'Logged out successfully' });
-    } catch (err) { next(err); }
+      const { refreshToken } = req.body as { refreshToken: string };
+
+      if (!refreshToken) {
+        sendError(res, 400, 'VALIDATION_ERROR', 'Refresh token is required');
+        return;
+      }
+
+      const result = await AuthService.refreshTokens(refreshToken);
+
+      res.json({
+        success: true,
+        data: result,
+      });
+    } catch (error) {
+      if (error instanceof AppError) {
+        sendError(res, error.statusCode, error.code, error.message);
+        return;
+      }
+      sendError(res, 401, 'TOKEN_REFRESH_FAILED', 'Failed to refresh token');
+    }
   }
 
-  static async refresh(req: Request, res: Response, next: NextFunction) {
+  /**
+   * User logout
+   */
+  static async logout(req: Request, res: Response): Promise<void> {
     try {
-      const token = req.cookies?.refreshToken || RefreshSchema.parse(req.body).refreshToken;
-      const result = await AuthService.refreshTokens(token);
-      res.cookie('refreshToken', result.refreshToken, { httpOnly: true, sameSite: 'strict', maxAge: 7 * 24 * 60 * 60 * 1000 });
-      sendSuccess(res, { accessToken: result.accessToken });
-    } catch (err) { next(err); }
+      const { refreshToken } = req.body as { refreshToken: string };
+
+      if (!refreshToken) {
+        sendError(res, 400, 'VALIDATION_ERROR', 'Refresh token is required');
+        return;
+      }
+
+      await AuthService.logout(refreshToken);
+
+      res.json({
+        success: true,
+        data: null,
+      });
+    } catch (error) {
+      if (error instanceof AppError) {
+        sendError(res, error.statusCode, error.code, error.message);
+        return;
+      }
+      sendError(res, 500, 'LOGOUT_FAILED', 'Logout failed');
+    }
   }
 
-  static async me(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+  /**
+   * Get current user
+   */
+  static async me(req: AuthenticatedRequest, res: Response): Promise<void> {
     try {
-      const user = await AuthService.getMe(req.user.userId);
-      sendSuccess(res, user);
-    } catch (err) { next(err); }
+      if (!req.user) {
+        sendError(res, 401, 'UNAUTHORIZED', 'Not authenticated');
+        return;
+      }
+
+      const user = await AuthService.getMe(req.user.id);
+
+      res.json({
+        success: true,
+        data: user,
+      });
+    } catch (error) {
+      if (error instanceof AppError) {
+        sendError(res, error.statusCode, error.code, error.message);
+        return;
+      }
+      sendError(res, 500, 'FETCH_FAILED', 'Failed to fetch user data');
+    }
   }
 
-  static async requestPasswordReset(req: Request, res: Response, next: NextFunction) {
+  /**
+   * Request password reset
+   */
+  static async requestPasswordReset(req: Request, res: Response): Promise<void> {
     try {
-      const { email } = ResetRequestSchema.parse(req.body);
+      const { email } = req.body as { email: string };
+
+      if (!email) {
+        sendError(res, 400, 'VALIDATION_ERROR', 'Email is required');
+        return;
+      }
+
       await AuthService.requestPasswordReset(email);
-      sendSuccess(res, { message: 'If this email is registered, a reset link has been sent.' });
-    } catch (err) { next(err); }
+
+      res.json({
+        success: true,
+        message: 'If the email exists, a password reset link has been sent',
+      });
+    } catch (error) {
+      if (error instanceof AppError) {
+        sendError(res, error.statusCode, error.code, error.message);
+        return;
+      }
+      sendError(res, 500, 'PASSWORD_RESET_REQUEST_FAILED', 'Failed to request password reset');
+    }
   }
 
-  static async resetPassword(req: Request, res: Response, next: NextFunction) {
+  /**
+   * Confirm password reset
+   */
+  static async resetPassword(req: Request, res: Response): Promise<void> {
     try {
-      const { token, newPassword } = ResetConfirmSchema.parse(req.body);
-      await AuthService.resetPassword(token, newPassword);
-      sendSuccess(res, { message: 'Password reset successfully. Please log in.' });
-    } catch (err) { next(err); }
+      const { token, password } = req.body as { token: string; password: string };
+
+      if (!token || !password) {
+        sendError(res, 400, 'VALIDATION_ERROR', 'Token and password are required');
+        return;
+      }
+
+      await AuthService.resetPassword(token, password);
+
+      res.json({
+        success: true,
+        message: 'Password has been reset successfully',
+      });
+    } catch (error) {
+      if (error instanceof AppError) {
+        sendError(res, error.statusCode, error.code, error.message);
+        return;
+      }
+      sendError(res, 500, 'PASSWORD_RESET_FAILED', 'Failed to reset password');
+    }
   }
 
-  static async verifyEmail(req: Request, res: Response, next: NextFunction) {
+  /**
+   * Verify email
+   */
+  static async verifyEmail(req: Request, res: Response): Promise<void> {
     try {
-      const token = req.query.token as string;
-      if (!token) { sendError(res, 400, 'MISSING_TOKEN', 'Verification token required'); return; }
+      const { token } = req.query as { token: string };
+
+      if (!token) {
+        sendError(res, 400, 'VALIDATION_ERROR', 'Verification token is required');
+        return;
+      }
+
       await AuthService.verifyEmail(token);
-      sendSuccess(res, { message: 'Email verified successfully.' });
-    } catch (err) { next(err); }
+
+      res.json({
+        success: true,
+        message: 'Email has been verified successfully',
+      });
+    } catch (error) {
+      if (error instanceof AppError) {
+        sendError(res, error.statusCode, error.code, error.message);
+        return;
+      }
+      sendError(res, 500, 'EMAIL_VERIFICATION_FAILED', 'Failed to verify email');
+    }
   }
 }

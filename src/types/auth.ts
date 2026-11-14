@@ -15,6 +15,17 @@ export interface JwtRefreshPayload {
   exp: number;
 }
 
+// This interface is used by the integrations controller
+// The middleware's AuthenticatedRequest has user.id, but integrations controller expects user.userId
+export interface AuthenticatedRequestWithUserId extends Request {
+  user: {
+    id: string;
+    email: string;
+    name?: string;
+  };
+}
+
+// Legacy interface for backward compatibility
 export interface AuthenticatedRequest extends Request {
   user: {
     userId: string;

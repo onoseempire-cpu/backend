@@ -1,26 +1,29 @@
 import { Request, Response, NextFunction } from 'express';
-import { ZodSchema, ZodError } from 'zod';
+import { ZodSchema } from 'zod';
 import { sendError } from '../utils/api-response';
 
-export const validateBody = <T>(schema: ZodSchema<T>) =>
-  (req: Request, res: Response, next: NextFunction): void => {
-    const result = schema.safeParse(req.body);
-    if (!result.success) {
-      sendError(res, 400, 'VALIDATION_ERROR', 'Invalid request body', result.error.flatten());
-      return;
-    }
-    req.body = result.data;
+export const validateBody = (schema: ZodSchema) => async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    req.body = await schema.parseAsync(req.body);
     next();
-  };
+  } catch (err) {
+    sendError(res, 400, 'VALIDATION_ERROR', 'Invalid request body', err);
+  }
+};
 
-export const validateQuery = <T>(schema: ZodSchema<T>) =>
-  (req: Request, res: Response, next: NextFunction): void => {
-    const result = schema.safeParse(req.query);
-    if (!result.success) {
-      sendError(res, 400, 'VALIDATION_ERROR', 'Invalid query parameters', result.error.flatten());
-      return;
-    }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    req.query = result.data as any;
+export const validateQuery = (schema: ZodSchema) => async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    req.query = await schema.parseAsync(req.query);
     next();
-  };
+  } catch (err) {
+    sendError(res, 400, 'VALIDATION_ERROR', 'Invalid query parameters', err);
+  }
+};

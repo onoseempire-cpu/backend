@@ -3,7 +3,6 @@ import { env } from '../config/env';
 
 const ALGORITHM = 'aes-256-gcm';
 const IV_LENGTH = 16;
-const AUTH_TAG_LENGTH = 16;
 const KEY = Buffer.from(env.ENCRYPTION_KEY, 'utf-8'); // 32 bytes
 
 /**

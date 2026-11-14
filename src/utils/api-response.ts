@@ -3,12 +3,15 @@ import { Response } from 'express';
 export interface ApiSuccess<T> {
   success: true;
   data: T;
+  message?: string;
   meta?: {
     page?: number;
     limit?: number;
     total?: number;
+    totalPages?: number;
     lastSync?: string | null;
     reportingDelay?: string;
+    unreadCount?: number;
   };
 }
 
@@ -27,13 +30,16 @@ export const sendSuccess = <T>(
   res: Response,
   data: T,
   statusCode = 200,
-  meta?: ApiSuccess<T>['meta']
+  meta?: ApiSuccess<T>['meta'],
+  message?: string
 ): void => {
-  res.status(statusCode).json({
+  const response: ApiSuccess<T> = {
     success: true,
     data,
+    ...(message ? { message } : {}),
     ...(meta ? { meta } : {}),
-  } satisfies ApiSuccess<T>);
+  };
+  res.status(statusCode).json(response);
 };
 
 export const sendError = (
@@ -46,7 +52,7 @@ export const sendError = (
   res.status(statusCode).json({
     success: false,
     error: { code, message, ...(details !== undefined ? { details } : {}) },
-  } satisfies ApiError);
+  });
 };
 
 export const sendPaginated = <T>(

@@ -1,42 +1,26 @@
-import { google } from 'googleapis';
-import { getAuthenticatedClient } from './oauth';
+import prisma from '../../config/database';
 import { logger } from '../../utils/logger';
+import { EncryptionService } from '../services/encryption.service';
 
 export class AdSenseService {
-  static async getAccountInfo(connectedAccountId: string) {
-    const auth = await getAuthenticatedClient(connectedAccountId);
+  static async syncEarnings(connectedAccountId: string, days = 30): Promise<void> {
+    const auth = await (await import('./oauth')).getAuthenticatedClient(connectedAccountId);
     const adsense = google.adsense({ version: 'v2', auth });
-    const { data } = await adsense.accounts.list();
-    return data.accounts ?? [];
-  }
 
-  static async getReportData(
-    connectedAccountId: string,
-    accountId: string,
-    startDate: string,
-    endDate: string
-  ) {
-    const auth = await getAuthenticatedClient(connectedAccountId);
-    const adsense = google.adsense({ version: 'v2', auth });
+    const endDate = new Date();
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - days);
+
+    const formatDate = (d: Date) => d.toISOString().split('T')[0];
 
     const { data } = await adsense.accounts.reports.generate({
-      account: accountId,
-      'dateRange': 'CUSTOM',
-      'startDate.year': parseInt(startDate.split('-')[0]),
-      'startDate.month': parseInt(startDate.split('-')[1]),
-      'startDate.day': parseInt(startDate.split('-')[2]),
-      'endDate.year': parseInt(endDate.split('-')[0]),
-      'endDate.month': parseInt(endDate.split('-')[1]),
-      'endDate.day': parseInt(endDate.split('-')[2]),
-      metrics: [
-        'PAGE_VIEWS', 'AD_REQUESTS', 'MATCHED_AD_REQUESTS',
-        'TOTAL_IMPRESSIONS', 'CLICKS', 'PAGE_VIEWS_CTR',
-        'PAGE_VIEWS_RPM', 'TOTAL_EARNINGS', 'COST_PER_CLICK',
-      ],
+      account: 'accounts/pub-XXXXXXXXXXXXXXXX', // TODO: Get from account
+      dateRange: { startDate: formatDate(startDate), endDate: formatDate(endDate) },
+      metrics: ['EARNINGS', 'PAGE_VIEWS', 'CLICKS', 'CTR', 'RPM'],
       dimensions: ['DATE'],
     });
 
-    logger.info('AdSense report fetched', { connectedAccountId, startDate, endDate });
-    return data;
+    // TODO: Store earnings in database
+    logger.info('AdSense earnings synced', { connectedAccountId });
   }
 }

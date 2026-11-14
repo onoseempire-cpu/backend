@@ -1,34 +1,38 @@
-import cron from 'node-cron';
+import * as cron from 'node-cron';
 import { CrawlerService } from './crawler.service';
-import prisma from '../config/database';
-import { logger } from '../utils/logger';
+import { logger } from '../../utils/logger';
 
 export class CrawlerScheduler {
   private static crawlTask: cron.ScheduledTask | null = null;
 
-  static start() {
-    // Light sync every 2 hours
-    this.crawlTask = cron.schedule('0 */2 * * *', async () => {
-      logger.info('Scheduled crawler triggered');
-      await this.runForAllUsers();
-    });
-    logger.info('Crawler scheduler started (every 2 hours)');
-  }
+  static start(): void {
+    if (this.crawlTask) return;
 
-  static stop() {
-    this.crawlTask?.stop();
-    logger.info('Crawler scheduler stopped');
-  }
+    // Run every hour
+    this.crawlTask = cron.schedule('0 * * * *', async () => {
+      logger.info('Starting scheduled crawler job');
+      try {
+        // For each active connected account, run sync
+        const accounts = await (await import('../../config/database')).default.connectedAccount.findMany({
+          where: { status: 'active' },
+        });
 
-  private static async runForAllUsers() {
-    try {
-      const users = await prisma.user.findMany({ where: { isActive: true }, select: { id: true } });
-      for (const user of users) {
-        const count = await prisma.connectedAccount.count({ where: { userId: user.id, status: 'active' } });
-        if (count > 0) await CrawlerService.startCrawl(user.id, 'sync');
+        for (const account of accounts) {
+          await CrawlerService.startCrawl(account.userId, 'sync', [account.provider.toLowerCase()]);
+        }
+      } catch (err) {
+        logger.error('Scheduled crawler failed', { error: err });
       }
-    } catch (err) {
-      logger.error('Scheduled crawl failed', { error: err });
+    });
+
+    logger.info('Crawler scheduler started');
+  }
+
+  static stop(): void {
+    if (this.crawlTask) {
+      this.crawlTask.stop();
+      this.crawlTask = null;
+      logger.info('Crawler scheduler stopped');
     }
   }
 }

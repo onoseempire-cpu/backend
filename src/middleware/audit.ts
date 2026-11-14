@@ -1,5 +1,5 @@
 import { Response, NextFunction } from 'express';
-import { AuthenticatedRequest } from '../types/auth';
+import { AuthenticatedRequest } from '../middleware/auth.middleware';
 import prisma from '../config/database';
 import { logger } from '../utils/logger';
 
@@ -8,22 +8,22 @@ export const auditLog = (
   resource?: string
 ) => async (
   req: AuthenticatedRequest,
-  res: Response,
+  _res: Response,
   next: NextFunction
 ): Promise<void> => {
   // Run after request completes
-  res.on('finish', async () => {
-    const success = res.statusCode < 400;
+  _res.on('finish', async () => {
+    const success = _res.statusCode < 400;
     try {
       await prisma.auditLog.create({
         data: {
-          userId: req.user?.userId ?? null,
+          userId: req.user?.id ?? null,
           action,
           resource: resource ?? null,
           metadata: JSON.stringify({
             method: req.method,
             path: req.path,
-            statusCode: res.statusCode,
+            statusCode: _res.statusCode,
             query: req.query,
           }),
           ipAddress: (req.headers['x-forwarded-for'] as string) ?? req.ip ?? null,

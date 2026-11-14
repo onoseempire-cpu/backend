@@ -4,105 +4,63 @@ import prisma from '../../config/database';
 import { logger } from '../../utils/logger';
 
 export class YouTubeAnalyticsService {
-  static async syncChannelMetrics(connectedAccountId: string, startDate: string, endDate: string): Promise<void> {
+  static async syncChannelMetrics(connectedAccountId: string, days = 30): Promise<void> {
     const auth = await getAuthenticatedClient(connectedAccountId);
-    const yta = google.youtubeAnalytics({ version: 'v2', auth });
-    const channels = await prisma.youTubeChannel.findMany({ where: { connectedAccountId } });
+    const youtubeAnalytics = google.youtubeAnalytics({ version: 'v2', auth });
 
-    for (const channel of channels) {
-      // Basic viewership metrics
-      try {
-        const basic = await yta.reports.query({
-          ids: `channel==${channel.channelId}`, startDate, endDate,
-          metrics: 'views,estimatedMinutesWatched,averageViewDuration,averageViewPercentage,subscribersGained,subscribersLost,shares,likes,dislikes,comments',
-          dimensions: 'day', sort: 'day',
-        });
-        await this.storeRows(channel.channelId, basic.data);
-      } catch (err) {
-        logger.warn('Basic metrics error', { channelId: channel.channelId, error: (err as Error).message });
-      }
+    const endDate = new Date();
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - days);
 
-      // Revenue (may fail if not monetized)
-      try {
-        const rev = await yta.reports.query({
-          ids: `channel==${channel.channelId}`, startDate, endDate,
-          metrics: 'estimatedRevenue,estimatedAdRevenue,grossRevenue,monetizedPlaybacks,cpm,adImpressions',
-          dimensions: 'day', sort: 'day',
-        });
-        await this.storeRows(channel.channelId, rev.data, true);
-      } catch {
-        logger.debug('Revenue metrics not available (channel not monetized)', { channelId: channel.channelId });
-      }
+    const formatDate = (d: Date) => d.toISOString().split('T')[0];
 
-      // Impressions (may require extra permission)
-      try {
-        const imp = await yta.reports.query({
-          ids: `channel==${channel.channelId}`, startDate, endDate,
-          metrics: 'impressions,impressionClickThroughRate',
-          dimensions: 'day', sort: 'day',
-        });
-        await this.storeRows(channel.channelId, imp.data, false, true);
-      } catch {
-        logger.debug('Impression metrics not available', { channelId: channel.channelId });
-      }
-    }
-  }
-
-  private static async storeRows(
-    channelId: string,
-    data: { columnHeaders?: Array<{ name?: string | null }> | null; rows?: Array<Array<string | number>> | null },
-    isRevenue = false,
-    isImpression = false
-  ) {
-    if (!data.rows || !data.columnHeaders) return;
-    const h = data.columnHeaders.map(c => c.name ?? '');
-    const idx = (n: string) => h.indexOf(n);
-    const num = (row: Array<string | number>, n: string) => {
-      const i = idx(n); return i >= 0 ? (row[i] as number) || null : null;
-    };
-
-    for (const row of data.rows) {
-      const date = row[idx('day')] as string;
-      if (!date) continue;
-
-      if (isRevenue) {
-        await prisma.youTubeChannelMetric.upsert({
-          where: { channelId_date: { channelId, date } },
-          create: { channelId, date, estimatedRevenue: num(row, 'estimatedRevenue'), estimatedAdRevenue: num(row, 'estimatedAdRevenue'), grossRevenue: num(row, 'grossRevenue'), monetizedPlaybacks: num(row, 'monetizedPlaybacks'), cpm: num(row, 'cpm'), adImpressions: num(row, 'adImpressions') },
-          update: { estimatedRevenue: num(row, 'estimatedRevenue'), estimatedAdRevenue: num(row, 'estimatedAdRevenue'), grossRevenue: num(row, 'grossRevenue'), monetizedPlaybacks: num(row, 'monetizedPlaybacks'), cpm: num(row, 'cpm'), adImpressions: num(row, 'adImpressions') },
-        });
-      } else if (isImpression) {
-        await prisma.youTubeChannelMetric.upsert({
-          where: { channelId_date: { channelId, date } },
-          create: { channelId, date, impressions: num(row, 'impressions'), impressionClickThroughRate: num(row, 'impressionClickThroughRate') },
-          update: { impressions: num(row, 'impressions'), impressionClickThroughRate: num(row, 'impressionClickThroughRate') },
-        });
-      } else {
-        await prisma.youTubeChannelMetric.upsert({
-          where: { channelId_date: { channelId, date } },
-          create: { channelId, date, views: num(row, 'views'), estimatedMinutesWatched: num(row, 'estimatedMinutesWatched'), averageViewDuration: num(row, 'averageViewDuration'), averageViewPercentage: num(row, 'averageViewPercentage'), subscribersGained: num(row, 'subscribersGained'), subscribersLost: num(row, 'subscribersLost'), shares: num(row, 'shares'), likes: num(row, 'likes'), dislikes: num(row, 'dislikes'), comments: num(row, 'comments') },
-          update: { views: num(row, 'views'), estimatedMinutesWatched: num(row, 'estimatedMinutesWatched'), averageViewDuration: num(row, 'averageViewDuration'), averageViewPercentage: num(row, 'averageViewPercentage'), subscribersGained: num(row, 'subscribersGained'), subscribersLost: num(row, 'subscribersLost'), shares: num(row, 'shares'), likes: num(row, 'likes'), dislikes: num(row, 'dislikes'), comments: num(row, 'comments') },
-        });
-      }
-    }
-  }
-
-  static async getChannelMetrics(channelId: string, startDate: string, endDate: string) {
-    const metrics = await prisma.youTubeChannelMetric.findMany({
-      where: { channelId, date: { gte: startDate, lte: endDate } },
-      orderBy: { date: 'asc' },
+    const { data } = await youtubeAnalytics.reports.query({
+      ids: 'channel==MINE',
+      startDate: formatDate(startDate),
+      endDate: formatDate(endDate),
+      metrics: 'views,estimatedMinutesWatched,averageViewDuration,averageViewPercentage,subscribersGained,subscribersLost,likes,dislikes,comments,shares,estimatedRevenue,impressions,annotationClickThroughRate,annotationCloseRate',
+      dimensions: 'day',
+      sort: 'day',
     });
-    const sum = (key: keyof typeof metrics[0]) => metrics.reduce((s, m) => s + ((m[key] as number | null) ?? 0), 0);
-    return {
-      metrics,
-      totals: {
-        views: sum('views'), estimatedMinutesWatched: sum('estimatedMinutesWatched'),
-        subscribersGained: sum('subscribersGained'), subscribersLost: sum('subscribersLost'),
-        netSubscribers: sum('subscribersGained') - sum('subscribersLost'),
-        likes: sum('likes'), comments: sum('comments'), shares: sum('shares'),
-        estimatedRevenue: metrics.some(m => m.estimatedRevenue !== null) ? sum('estimatedRevenue') : null,
-        impressions: metrics.some(m => m.impressions !== null) ? sum('impressions') : null,
-      },
-    };
+
+    for (const row of data.rows ?? []) {
+      const date = new Date(row[0] as string);
+      await prisma.youTubeChannelMetric.upsert({
+        where: { channelId_date: { channelId: row[1] as string, date } },
+        create: {
+          channelId: row[1] as string,
+          date,
+          views: row[2] as number ?? null,
+          watchTimeMinutes: row[3] as number ?? null,
+          averageViewDuration: row[4] as number ?? null,
+          averageViewPercentage: row[5] as number ?? null,
+          subscribersGained: row[6] as number ?? null,
+          subscribersLost: row[7] as number ?? null,
+          likes: row[8] as number ?? null,
+          dislikes: row[9] as number ?? null,
+          comments: row[10] as number ?? null,
+          shares: row[11] as number ?? null,
+          estimatedRevenue: row[12] as number ?? null,
+          impressions: row[13] as number ?? null,
+          ctr: row[14] as number ?? null,
+        },
+        update: {
+          views: row[2] as number ?? null,
+          watchTimeMinutes: row[3] as number ?? null,
+          averageViewDuration: row[4] as number ?? null,
+          averageViewPercentage: row[5] as number ?? null,
+          subscribersGained: row[6] as number ?? null,
+          subscribersLost: row[7] as number ?? null,
+          likes: row[8] as number ?? null,
+          dislikes: row[9] as number ?? null,
+          comments: row[10] as number ?? null,
+          shares: row[11] as number ?? null,
+          estimatedRevenue: row[12] as number ?? null,
+          impressions: row[13] as number ?? null,
+          ctr: row[14] as number ?? null,
+        },
+      });
+    }
+    logger.info('Channel metrics synced', { connectedAccountId });
   }
 }

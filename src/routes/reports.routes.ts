@@ -1,7 +1,7 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { ReportsController } from '../controllers/reports.controller';
 import { authenticateJWT } from '../middleware/auth.middleware';
-import type { AuthenticatedRequest } from '../types/auth';
+import type { AuthenticatedRequest } from '../middleware/auth.middleware';
 
 const router = Router();
 const auth = authenticateJWT as unknown as (req: Request, res: Response, next: NextFunction) => void;

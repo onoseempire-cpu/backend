@@ -18,7 +18,7 @@ export class NotificationService {
           type,
           title,
           message,
-          metadata: metadata ? JSON.stringify(metadata) : null,
+          data: metadata ? JSON.stringify(metadata) : null,
         },
       });
     } catch (err) {

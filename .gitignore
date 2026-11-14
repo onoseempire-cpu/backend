@@ -1,11 +1,8 @@
-node_modules/
+﻿node_modules/
 dist/
+*.log
+pmav-database.db
 .env
-*.db
-*.db-journal
-*.db-wal
-*.db-shm
-logs/
-coverage/
-.nyc_output/
-*.js.map
+.env.*
+.DS_Store
+*.tsbuildinfo

@@ -1,52 +1,141 @@
-import { Response, NextFunction } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
-import { env } from '../config/env';
-import { AuthenticatedRequest, JwtAccessPayload } from '../types/auth';
-import { sendError } from '../utils/api-response';
-import { logger } from '../utils/logger';
+import { prisma } from '../database/prisma';
+import { unauthorizedResponse } from '../utils/response';
+import config from '../config/app.config';
 
-export const authenticateJWT = (
+export interface AuthenticatedRequestUser {
+  id: string;
+  userId: string;
+  email: string;
+  name?: string;
+  role?: string;
+}
+
+export interface AuthenticatedRequest extends Request {
+  user?: AuthenticatedRequestUser;
+}
+
+interface JwtPayload {
+  userId: string;
+  type: 'access' | 'refresh';
+  sessionId?: string;
+}
+
+/**
+ * Middleware to authenticate JWT access token
+ */
+export const authenticate = async (
   req: AuthenticatedRequest,
-  res: Response,
+  _res: Response,
   next: NextFunction
-): void => {
+): Promise<void> => {
   const authHeader = req.headers.authorization;
-  const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
 
-  if (!token) {
-    sendError(res, 401, 'UNAUTHORIZED', 'No authentication token provided');
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    _res.status(401).json(unauthorizedResponse('No token provided'));
     return;
   }
 
+  const token = authHeader.split(' ')[1];
+
   try {
-    const payload = jwt.verify(token, env.JWT_ACCESS_SECRET) as JwtAccessPayload;
-    req.user = {
-      userId: payload.userId,
-      email: payload.email,
-      role: payload.role,
-    };
-    next();
-  } catch (err) {
-    if (err instanceof jwt.TokenExpiredError) {
-      sendError(res, 401, 'TOKEN_EXPIRED', 'Access token has expired');
-    } else if (err instanceof jwt.JsonWebTokenError) {
-      sendError(res, 401, 'TOKEN_INVALID', 'Invalid access token');
-    } else {
-      logger.error('JWT verification error', { error: err });
-      sendError(res, 500, 'AUTH_ERROR', 'Authentication error');
+    const decoded = jwt.verify(token, config.jwt.accessSecret) as JwtPayload;
+
+    if (decoded.type !== 'access') {
+      _res.status(401).json(unauthorizedResponse('Invalid token type'));
+      return;
     }
+
+    const session = await prisma.session.findFirst({
+      where: {
+        id: decoded.sessionId,
+        isActive: true,
+        expiresAt: { gt: new Date() },
+      },
+    });
+
+    if (!session) {
+      _res.status(401).json(unauthorizedResponse('Session expired or invalid'));
+      return;
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: decoded.userId },
+    });
+
+    if (!user || !user.isActive) {
+      _res.status(401).json(unauthorizedResponse('User not found or inactive'));
+      return;
+    }
+
+    req.user = {
+      id: user.id,
+      userId: user.id,
+      email: user.email,
+      name: user.displayName ?? undefined,
+      role: user.role ?? 'user',
+    };
+
+    next();
+  } catch (error) {
+    _res.status(401).json(unauthorizedResponse('Invalid token'));
   }
 };
 
-export const requireRole = (role: 'admin' | 'user') =>
-  (req: AuthenticatedRequest, res: Response, next: NextFunction): void => {
-    if (!req.user) {
-      sendError(res, 401, 'UNAUTHORIZED', 'Not authenticated');
-      return;
-    }
-    if (role === 'admin' && req.user.role !== 'admin') {
-      sendError(res, 403, 'FORBIDDEN', 'Insufficient permissions');
-      return;
-    }
+/**
+ * Alias for authenticate - used in route definitions
+ */
+export const authenticateJWT = authenticate;
+
+/**
+ * Middleware to optionally authenticate (for public endpoints)
+ */
+export const optionalAuth = async (
+  req: AuthenticatedRequest,
+  _res: Response,
+  next: NextFunction
+): Promise<void> => {
+  const authHeader = req.headers.authorization;
+
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
     next();
-  };
+    return;
+  }
+
+  const token = authHeader.split(' ')[1];
+
+  try {
+    const decoded = jwt.verify(token, config.jwt.accessSecret) as JwtPayload;
+
+    if (decoded.type === 'access') {
+      const session = await prisma.session.findFirst({
+        where: {
+          id: decoded.sessionId,
+          isActive: true,
+          expiresAt: { gt: new Date() },
+        },
+      });
+
+      if (session) {
+        const user = await prisma.user.findUnique({
+          where: { id: decoded.userId },
+        });
+
+        if (user && user.isActive) {
+          req.user = {
+            id: user.id,
+            userId: user.id,
+            email: user.email,
+            name: user.displayName ?? undefined,
+            role: user.role ?? 'user',
+          };
+        }
+      }
+    }
+  } catch (error) {
+    // Invalid token, but continue without user
+  }
+
+  next();
+};

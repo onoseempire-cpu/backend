@@ -27,24 +27,34 @@ const EnvSchema = z.object({
   SMTP_PASS: z.string().optional(),
   SMTP_FROM: z.string().default('PMAV System <noreply@pmav.local>'),
 
-  // YouTube
+  // YouTube Data API v3 - for basic channel/video info
   YOUTUBE_DATA_CLIENT_ID: z.string(),
   YOUTUBE_DATA_CLIENT_SECRET: z.string(),
   YOUTUBE_DATA_REDIRECT_URI: z.string(),
 
+  // YouTube Analytics API - for metrics (revenue, watch time, etc.)
   YOUTUBE_ANALYTICS_CLIENT_ID: z.string(),
   YOUTUBE_ANALYTICS_CLIENT_SECRET: z.string(),
   YOUTUBE_ANALYTICS_REDIRECT_URI: z.string(),
 
+  // YouTube Reporting API - for detailed monetization reports
   YOUTUBE_REPORTING_CLIENT_ID: z.string(),
   YOUTUBE_REPORTING_CLIENT_SECRET: z.string(),
   YOUTUBE_REPORTING_REDIRECT_URI: z.string(),
 
-  // Google (AdSense / GA / Search Console)
-  GOOGLE_CLIENT_ID: z.string(),
-  GOOGLE_CLIENT_SECRET: z.string(),
+  // Google AdSense API - for AdSense earnings
+  GOOGLE_ADSENSE_CLIENT_ID: z.string(),
+  GOOGLE_ADSENSE_CLIENT_SECRET: z.string(),
   GOOGLE_ADSENSE_REDIRECT_URI: z.string(),
+
+  // Google Analytics 4 Data API - for website analytics
+  GOOGLE_ANALYTICS_CLIENT_ID: z.string(),
+  GOOGLE_ANALYTICS_CLIENT_SECRET: z.string(),
   GOOGLE_ANALYTICS_REDIRECT_URI: z.string(),
+
+  // Google Search Console API - for SEO data
+  GOOGLE_SEARCH_CONSOLE_CLIENT_ID: z.string(),
+  GOOGLE_SEARCH_CONSOLE_CLIENT_SECRET: z.string(),
   GOOGLE_SEARCH_CONSOLE_REDIRECT_URI: z.string(),
 
   OPENAI_API_KEY: z.string().optional(),

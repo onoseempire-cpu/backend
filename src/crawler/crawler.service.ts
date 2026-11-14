@@ -1,125 +1,196 @@
-import prisma from '../config/database';
-import { logger } from '../utils/logger';
-import { getSocketServer } from '../sockets/socket.server';
-import { YouTubeDataService } from '../integrations/google/youtube-data';
-import { YouTubeAnalyticsService } from '../integrations/google/youtube-analytics';
-import { GoogleAnalyticsService } from '../integrations/google/google-analytics';
-import { NotificationService } from '../services/notification.service';
-import { getDateRange } from '../utils/date';
+import prisma from '../../config/database';
+import { logger } from '../../utils/logger';
 
-export type CrawlerJobType = 'discover' | 'sync' | 'update' | 'historical';
+export type CrawlerJobType = 'sync' | 'discover' | 'update' | 'full_reindex';
 
-const pauseFlags = new Map<string, boolean>();
+interface PauseFlag {
+  paused: boolean;
+}
+
+const pauseFlags = new Map<string, PauseFlag>();
 
 export class CrawlerService {
-  static async startCrawl(userId: string, jobType: CrawlerJobType = 'sync', sources?: string[]): Promise<string> {
-    const existing = await prisma.crawlerJob.findFirst({ where: { userId, status: { in: ['running', 'paused'] } } });
-    if (existing) return existing.id;
-
+  static async startCrawl(
+    userId: string,
+    jobType: CrawlerJobType,
+    sources?: string[]
+  ): Promise<string> {
     const job = await prisma.crawlerJob.create({
-      data: { userId, jobType, status: 'running', sources: sources ? JSON.stringify(sources) : null, startedAt: new Date(), progressPercent: 0, currentStep: 'Starting crawler...' },
+      data: {
+        userId,
+        jobType,
+        sources: sources ? JSON.stringify(sources) : null,
+        status: 'running',
+        startedAt: new Date(),
+        progressPercent: 0,
+        currentStep: 'Starting crawler...',
+      },
     });
 
-    logger.info('Crawler started', { jobId: job.id, userId, jobType });
-    this.emitEvent(userId, 'crawler.started', { jobId: job.id });
-    this.runCrawl(userId, job.id, jobType, sources).catch(err => logger.error('Crawler failed', { jobId: job.id, error: err }));
+    logger.info('Crawler job started', { jobId: job.id, userId, jobType });
+
+    // Run in background
+    this.runCrawl(job.id, userId, jobType, sources).catch(err => {
+      logger.error('Crawl failed', { jobId: job.id, error: err });
+    });
+
     return job.id;
   }
 
-  private static async runCrawl(userId: string, jobId: string, jobType: CrawlerJobType, sources?: string[]) {
-    const logs: string[] = [];
-    const addLog = (m: string) => logs.push(`[${new Date().toISOString()}] ${m}`);
-    let itemsProcessed = 0, itemsUpdated = 0, itemsFailed = 0;
-
-    try {
-      const accounts = await prisma.connectedAccount.findMany({ where: { userId, status: 'active' } });
-      const targetSources = sources ?? accounts.map(a => a.provider);
-      const relevant = accounts.filter(a => targetSources.includes(a.provider));
-
-      for (let i = 0; i < relevant.length; i++) {
-        const account = relevant[i];
-        const pct = Math.round((i / (relevant.length || 1)) * 90);
-
-        if (pauseFlags.get(jobId)) {
-          await prisma.crawlerJob.update({ where: { id: jobId }, data: { status: 'paused', pausedAt: new Date() } });
-          this.emitEvent(userId, 'crawler.progress', { jobId, progress: pct, step: 'Paused' });
-          addLog('Crawler paused by user');
-          while (pauseFlags.get(jobId)) await new Promise(r => setTimeout(r, 1000));
-          await prisma.crawlerJob.update({ where: { id: jobId }, data: { status: 'running' } });
-        }
-
-        try {
-          addLog(`Crawling ${account.provider}`);
-          await this.updateJobProgress(jobId, pct, `Crawling ${account.provider}...`);
-          this.emitEvent(userId, 'crawler.progress', { jobId, progress: pct, step: `Crawling ${account.provider}...` });
-
-          if (account.provider === 'youtube-data') {
-            await YouTubeDataService.syncChannelInfo(account.id);
-            const count = await YouTubeDataService.syncVideos(account.id, 100);
-            itemsProcessed += count; itemsUpdated += count;
-          }
-          if (account.provider === 'youtube-analytics') {
-            const { startDate, endDate } = getDateRange('7d');
-            await YouTubeAnalyticsService.syncChannelMetrics(account.id, startDate, endDate);
-            itemsProcessed += 7; itemsUpdated += 7;
-          }
-          if (account.provider === 'google-analytics') {
-            await GoogleAnalyticsService.listProperties(account.id);
-            const props = await prisma.googleAnalyticsProperty.findMany({ where: { connectedAccountId: account.id } });
-            for (const prop of props) {
-              const { startDate, endDate } = getDateRange('7d');
-              await GoogleAnalyticsService.syncPropertyMetrics(account.id, prop.propertyId, startDate, endDate);
-              itemsProcessed += 7; itemsUpdated += 7;
-            }
-          }
-          await prisma.connectedAccount.update({ where: { id: account.id }, data: { lastSyncAt: new Date(), status: 'active' } });
-          addLog(`✅ ${account.provider}: success`);
-        } catch (err) {
-          itemsFailed++;
-          addLog(`ERROR: ${(err as Error).message}`);
-        }
-      }
-
-      await prisma.crawlerJob.update({
-        where: { id: jobId },
-        data: { status: 'completed', completedAt: new Date(), progressPercent: 100, currentStep: 'Crawl complete', itemsProcessed, itemsUpdated, itemsFailed, logJson: JSON.stringify(logs) },
-      });
-
-      this.emitEvent(userId, 'crawler.completed', { jobId, itemsProcessed, itemsUpdated });
-      this.emitEvent(userId, 'analytics.updated', { timestamp: new Date().toISOString() });
-      await NotificationService.create(userId, 'sync', 'Crawler Complete', `Crawled ${itemsProcessed} items, updated ${itemsUpdated}.`);
-    } catch (err) {
-      await prisma.crawlerJob.update({ where: { id: jobId }, data: { status: 'failed', completedAt: new Date(), lastError: (err as Error).message, logJson: JSON.stringify(logs) } });
-      this.emitEvent(userId, 'crawler.failed', { jobId, error: (err as Error).message });
-    } finally {
-      pauseFlags.delete(jobId);
-    }
-  }
-
   static async pause(userId: string, jobId: string): Promise<void> {
-    const job = await prisma.crawlerJob.findFirst({ where: { id: jobId, userId, status: 'running' } });
-    if (!job) throw new Error('Job not found or not running');
-    pauseFlags.set(jobId, true);
+    const flag = pauseFlags.get(jobId) || { paused: false };
+    flag.paused = true;
+    pauseFlags.set(jobId, flag);
+
+    await prisma.crawlerJob.update({
+      where: { id: jobId },
+      data: { status: 'paused' },
+    });
   }
 
-  static async resume(userId: string, jobId: string): Promise<void> { pauseFlags.set(jobId, false); }
+  static async resume(userId: string, jobId: string): Promise<void> {
+    const flag = pauseFlags.get(jobId) || { paused: false };
+    flag.paused = false;
+    pauseFlags.set(jobId, flag);
+
+    await prisma.crawlerJob.update({
+      where: { id: jobId },
+      data: { status: 'running' },
+    });
+  }
 
   static async stop(userId: string, jobId: string): Promise<void> {
-    await prisma.crawlerJob.update({ where: { id: jobId }, data: { status: 'cancelled', completedAt: new Date() } });
-    pauseFlags.delete(jobId);
+    const flag = pauseFlags.get(jobId) || { paused: false };
+    flag.paused = true;
+    pauseFlags.set(jobId, flag);
+
+    await prisma.crawlerJob.update({
+      where: { id: jobId },
+      data: { status: 'stopped', completedAt: new Date() },
+    });
   }
 
   static async getStatus(userId: string, jobId?: string) {
-    if (jobId) return prisma.crawlerJob.findFirst({ where: { id: jobId, userId } });
-    return prisma.crawlerJob.findFirst({ where: { userId }, orderBy: { createdAt: 'desc' } });
+    if (jobId) {
+      return prisma.crawlerJob.findFirst({ where: { id: jobId, userId } });
+    }
+    return prisma.crawlerJob.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+      take: 20,
+    });
   }
 
-  private static async updateJobProgress(jobId: string, pct: number, step: string) {
-    await prisma.crawlerJob.update({ where: { id: jobId }, data: { progressPercent: pct, currentStep: step } });
-  }
+  private static async runCrawl(jobId: string, userId: string, jobType: CrawlerJobType, sources?: string[]): Promise<void> {
+    const logs: string[] = [];
+    let itemsProcessed = 0;
+    let itemsUpdated = 0;
+    let itemsFailed = 0;
 
-  private static emitEvent(userId: string, event: string, data: Record<string, unknown>) {
-    try { const io = getSocketServer(); io.to(`user:${userId}`).emit(event, { ...data, timestamp: new Date().toISOString() }); }
-    catch { /* socket not ready */ }
+    try {
+      // Update progress
+      await prisma.crawlerJob.update({
+        where: { id: jobId },
+        data: { progressPercent: 10, currentStep: 'Fetching connected accounts...' },
+      });
+      logs.push('Fetching connected accounts...');
+
+      // Get connected accounts for this user
+      const accounts = await prisma.connectedAccount.findMany({
+        where: { userId, status: 'active' },
+      });
+
+      if (accounts.length === 0) {
+        logs.push('No connected accounts found');
+        await prisma.crawlerJob.update({
+          where: { id: jobId },
+          data: { status: 'completed', completedAt: new Date(), progressPercent: 100, currentStep: 'No accounts to crawl', itemsProcessed, itemsUpdated, itemsFailed, logJson: JSON.stringify(logs) },
+        });
+        return;
+      }
+
+      let totalSteps = accounts.length * 3;
+      let currentStep = 10;
+
+      for (const account of accounts) {
+        // Check if paused
+        const flag = pauseFlags.get(jobId);
+        if (flag?.paused) {
+          logs.push(`Crawl paused at account ${account.provider}`);
+          await prisma.crawlerJob.update({
+            where: { id: jobId },
+            data: { status: 'paused', currentStep: 'Paused', progressPercent, itemsProcessed, itemsUpdated, itemsFailed, logJson: JSON.stringify(logs) },
+          });
+          return;
+        }
+
+        try {
+          currentStep += Math.floor(90 / totalSteps);
+          await prisma.crawlerJob.update({
+            where: { id: jobId },
+            data: { progressPercent: currentStep, currentStep: `Syncing ${account.provider}...` },
+          });
+          logs.push(`Syncing ${account.provider}...`);
+
+          // Sync based on provider
+          const { getAuthenticatedClient } = await import('../integrations/google/oauth');
+          const { YouTubeDataService } = await import('../integrations/google/youtube-data');
+          const { YouTubeAnalyticsService } = await import('../integrations/google/youtube-analytics');
+          const { GoogleAnalyticsService } = await import('../integrations/google/google-analytics');
+
+          const client = await getAuthenticatedClient(account.id);
+
+          if (account.provider === 'YOUTUBE' || account.provider === 'youtubeData') {
+            await YouTubeDataService.syncChannelInfo(account.id);
+            await YouTubeDataService.syncVideos(account.id);
+            await YouTubeAnalyticsService.syncChannelMetrics(account.id);
+            logs.push(`Synced YouTube data for ${account.displayName || account.id}`);
+          } else if (account.provider === 'GOOGLE_ANALYTICS' || account.provider === 'googleAnalytics') {
+            await GoogleAnalyticsService.syncProperties(account.id);
+            await GoogleAnalyticsService.syncMetrics(account.id);
+            logs.push(`Synced Google Analytics data for ${account.displayName || account.id}`);
+          }
+
+          itemsProcessed++;
+          itemsUpdated++;
+
+        } catch (err) {
+          logger.error(`Failed to sync ${account.provider}`, { error: err, accountId: account.id });
+          itemsFailed++;
+          logs.push(`Failed ${account.provider}: ${err instanceof Error ? err.message : 'Unknown error'}`);
+        }
+      }
+
+      // Final update
+      const status = itemsFailed === accounts.length ? 'failed' : (itemsFailed > 0 ? 'partial' : 'completed');
+      await prisma.crawlerJob.update({
+        where: { id: jobId },
+        data: {
+          status,
+          completedAt: new Date(),
+          progressPercent: 100,
+          currentStep: 'Crawl complete',
+          itemsProcessed,
+          itemsUpdated,
+          itemsFailed,
+          logJson: JSON.stringify(logs),
+        },
+      });
+
+    } catch (err) {
+      logger.error('Crawler job failed', { jobId, error: err });
+      await prisma.crawlerJob.update({
+        where: { id: jobId },
+        data: {
+          status: 'failed',
+          completedAt: new Date(),
+          currentStep: 'Failed',
+          itemsFailed: itemsFailed + 1,
+          logJson: JSON.stringify(logs),
+        },
+      });
+    } finally {
+      pauseFlags.delete(jobId);
+    }
   }
 }

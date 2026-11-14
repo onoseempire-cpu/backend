@@ -2,13 +2,14 @@ import { Response, NextFunction } from 'express';
 import { generateAuthUrl, handleOAuthCallback, disconnectAccount, IntegrationProvider } from '../integrations/google/oauth';
 import prisma from '../config/database';
 import { sendSuccess, sendError } from '../utils/api-response';
-import type { AuthenticatedRequest } from '../types/auth';
+import type { AuthenticatedRequest } from '../middleware/auth.middleware';
 
 export class IntegrationsController {
   static async getAll(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
+      const userId = req.user!.id;
       const accounts = await prisma.connectedAccount.findMany({
-        where: { userId: req.user.userId },
+        where: { userId },
         select: { id: true, provider: true, providerAccountId: true, displayName: true, email: true, profileImageUrl: true, status: true, lastSyncAt: true, errorMessage: true, createdAt: true },
         orderBy: { createdAt: 'desc' },
       });
@@ -18,9 +19,10 @@ export class IntegrationsController {
 
   static async getStatus(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
+      const userId = req.user!.id;
       const counts = await prisma.connectedAccount.groupBy({
         by: ['provider', 'status'],
-        where: { userId: req.user.userId },
+        where: { userId },
         _count: true,
       });
       const statusMap: Record<string, { connected: boolean; accountCount: number }> = {};
@@ -38,7 +40,8 @@ export class IntegrationsController {
   static getConnectUrl(provider: IntegrationProvider) {
     return async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
       try {
-        const url = generateAuthUrl(req.user.userId, provider);
+        const userId = req.user!.id;
+        const url = generateAuthUrl(userId, provider);
         sendSuccess(res, { authUrl: url, provider });
       } catch (err) { next(err); }
     };
@@ -65,8 +68,9 @@ export class IntegrationsController {
 
   static async disconnect(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
+      const userId = req.user!.id;
       const accountId = req.params.accountId as string;
-      await disconnectAccount(req.user.userId, accountId);
+      await disconnectAccount(userId, accountId);
       sendSuccess(res, { message: 'Account disconnected successfully' });
     } catch (err) { next(err); }
   }

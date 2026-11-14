@@ -2,6 +2,7 @@ import { google } from 'googleapis';
 import { env } from './env';
 
 // ── YouTube Data API OAuth2 Client ───────────────────────────────────────────
+// Used for: Channel info, video listing, basic video data
 export const createYouTubeDataClient = () =>
   new google.auth.OAuth2(
     env.YOUTUBE_DATA_CLIENT_ID,
@@ -10,6 +11,7 @@ export const createYouTubeDataClient = () =>
   );
 
 // ── YouTube Analytics API OAuth2 Client ──────────────────────────────────────
+// Used for: Channel metrics (views, watch time, revenue, subscribers, etc.)
 export const createYouTubeAnalyticsClient = () =>
   new google.auth.OAuth2(
     env.YOUTUBE_ANALYTICS_CLIENT_ID,
@@ -18,6 +20,7 @@ export const createYouTubeAnalyticsClient = () =>
   );
 
 // ── YouTube Reporting API OAuth2 Client ──────────────────────────────────────
+// Used for: Detailed revenue reporting (advanced monetization data)
 export const createYouTubeReportingClient = () =>
   new google.auth.OAuth2(
     env.YOUTUBE_REPORTING_CLIENT_ID,
@@ -25,22 +28,32 @@ export const createYouTubeReportingClient = () =>
     env.YOUTUBE_REPORTING_REDIRECT_URI
   );
 
-// ── Google AdSense / Analytics / Search Console OAuth2 Client ────────────────
-export const createGoogleClient = (redirectUri?: string) =>
+// ── Google AdSense API OAuth2 Client ───────────────────────────────────────
+// Used for: AdSense earnings and reporting
+export const createAdSenseClient = () =>
   new google.auth.OAuth2(
-    env.GOOGLE_CLIENT_ID,
-    env.GOOGLE_CLIENT_SECRET,
-    redirectUri
+    env.GOOGLE_ADSENSE_CLIENT_ID,
+    env.GOOGLE_ADSENSE_CLIENT_SECRET,
+    env.GOOGLE_ADSENSE_REDIRECT_URI
   );
 
-export const createAdSenseClient = () =>
-  createGoogleClient(env.GOOGLE_ADSENSE_REDIRECT_URI);
-
+// ── Google Analytics 4 Data API OAuth2 Client ───────────────────────────────
+// Used for: Website/app analytics (sessions, users, conversion, etc.)
 export const createGoogleAnalyticsClient = () =>
-  createGoogleClient(env.GOOGLE_ANALYTICS_REDIRECT_URI);
+  new google.auth.OAuth2(
+    env.GOOGLE_ANALYTICS_CLIENT_ID,
+    env.GOOGLE_ANALYTICS_CLIENT_SECRET,
+    env.GOOGLE_ANALYTICS_REDIRECT_URI
+  );
 
+// ── Google Search Console API OAuth2 Client ─────────────────────────────────
+// Used for: SEO, search queries, page performance in Google Search
 export const createSearchConsoleClient = () =>
-  createGoogleClient(env.GOOGLE_SEARCH_CONSOLE_REDIRECT_URI);
+  new google.auth.OAuth2(
+    env.GOOGLE_SEARCH_CONSOLE_CLIENT_ID,
+    env.GOOGLE_SEARCH_CONSOLE_CLIENT_SECRET,
+    env.GOOGLE_SEARCH_CONSOLE_REDIRECT_URI
+  );
 
 // ── OAuth Scopes ─────────────────────────────────────────────────────────────
 export const OAUTH_SCOPES = {
@@ -58,12 +71,13 @@ export const OAUTH_SCOPES = {
     'https://www.googleapis.com/auth/yt-analytics.readonly',
     'https://www.googleapis.com/auth/userinfo.email',
   ],
-  googleAnalytics: [
-    'https://www.googleapis.com/auth/analytics.readonly',
+  adsense: [
+    'https://www.googleapis.com/auth/adsense.readonly',
     'https://www.googleapis.com/auth/userinfo.email',
   ],
-  adSense: [
-    'https://www.googleapis.com/auth/adsense.readonly',
+  googleAnalytics: [
+    'https://www.googleapis.com/auth/analytics.readonly',
+    'https://www.googleapis.com/auth/analytics.manage.users.readonly',
     'https://www.googleapis.com/auth/userinfo.email',
   ],
   searchConsole: [
@@ -71,3 +85,65 @@ export const OAUTH_SCOPES = {
     'https://www.googleapis.com/auth/userinfo.email',
   ],
 } as const;
+
+// ── Provider Type Definitions ────────────────────────────────────────────────
+export type IntegrationProvider =
+  | 'youtubeData'
+  | 'youtubeAnalytics'
+  | 'youtubeReporting'
+  | 'adsense'
+  | 'googleAnalytics'
+  | 'searchConsole';
+
+// ── Client Factory ───────────────────────────────────────────────────────────
+export const getClientForProvider = (provider: IntegrationProvider) => {
+  const clientMap: Record<IntegrationProvider, ReturnType<typeof createYouTubeDataClient>> = {
+    'youtubeData': createYouTubeDataClient(),
+    'youtubeAnalytics': createYouTubeAnalyticsClient(),
+    'youtubeReporting': createYouTubeReportingClient(),
+    'adsense': createAdSenseClient(),
+    'googleAnalytics': createGoogleAnalyticsClient(),
+    'searchConsole': createSearchConsoleClient(),
+  };
+  return clientMap[provider];
+};
+
+// ── Provider Info ────────────────────────────────────────────────────────────
+export const PROVIDER_INFO: Record<IntegrationProvider, {
+  name: string;
+  description: string;
+  scopes: readonly string[];
+  usesReporting?: boolean;
+}> = {
+  'youtubeData': {
+    name: 'YouTube Data',
+    description: 'Channel info, video listing, basic video data',
+    scopes: OAUTH_SCOPES.youtubeData,
+  },
+  'youtubeAnalytics': {
+    name: 'YouTube Analytics',
+    description: 'Metrics: views, watch time, revenue, subscribers',
+    scopes: OAUTH_SCOPES.youtubeAnalytics,
+    usesReporting: true,
+  },
+  'youtubeReporting': {
+    name: 'YouTube Reporting',
+    description: 'Detailed monetization reports',
+    scopes: OAUTH_SCOPES.youtubeReporting,
+  },
+  'adsense': {
+    name: 'AdSense',
+    description: 'AdSense earnings and reporting',
+    scopes: OAUTH_SCOPES.adsense,
+  },
+  'googleAnalytics': {
+    name: 'Google Analytics 4',
+    description: 'Website analytics: sessions, users, conversion',
+    scopes: OAUTH_SCOPES.googleAnalytics,
+  },
+  'searchConsole': {
+    name: 'Search Console',
+    description: 'SEO data: search queries, page performance',
+    scopes: OAUTH_SCOPES.searchConsole,
+  },
+};

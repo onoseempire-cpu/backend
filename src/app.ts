@@ -1,8 +1,6 @@
 import express from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
-import compression from 'compression';
-import cookieParser from 'cookie-parser';
 import morgan from 'morgan';
 import { env } from './config/env';
 import { generalRateLimit } from './middleware/rate-limit';
@@ -37,8 +35,6 @@ app.use(cors({
 // ── Body Parsing ──────────────────────────────────────────────────────────────
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
-app.use(cookieParser());
-app.use(compression());
 
 // ── HTTP Logging ──────────────────────────────────────────────────────────────
 if (env.NODE_ENV !== 'test') {

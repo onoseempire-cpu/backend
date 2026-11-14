@@ -1,17 +1,26 @@
-import { Router, Request, Response, NextFunction } from 'express';
+import { Router } from 'express';
 import { AnalyticsController } from '../controllers/analytics.controller';
 import { authenticateJWT } from '../middleware/auth.middleware';
-import type { AuthenticatedRequest } from '../types/auth';
+import { auditLog } from '../middleware/audit';
 
 const router = Router();
-const auth = authenticateJWT as unknown as (req: Request, res: Response, next: NextFunction) => void;
-const toAuth = (fn: (r: AuthenticatedRequest, res: Response, next: NextFunction) => void) =>
-  (req: Request, res: Response, next: NextFunction) => fn(req as AuthenticatedRequest, res, next);
 
-router.use(auth);
-router.get('/overview', toAuth(AnalyticsController.overview));
-router.get('/youtube', toAuth(AnalyticsController.youtube));
-router.get('/youtube/videos', toAuth(AnalyticsController.youtubeVideos));
-router.get('/google-analytics', toAuth(AnalyticsController.googleAnalytics));
+// All analytics routes require authentication
+router.use(authenticateJWT as never);
+
+// ── Analytics Overview ───────────────────────────────────────────────────────────
+// GET /api/v1/analytics/overview?period=30d
+router.get('/overview', auditLog('analytics.view') as never, AnalyticsController.overview as never);
+
+// ── YouTube Analytics ────────────────────────────────────────────────────────────
+// GET /api/v1/analytics/youtube?period=30d&channelId=...
+router.get('/youtube', AnalyticsController.youtube as never);
+
+// GET /api/v1/analytics/youtube/videos?channelId=...&limit=50&sortBy=viewCount
+router.get('/youtube/videos', AnalyticsController.youtubeVideos as never);
+
+// ── Google Analytics 4 Data ──────────────────────────────────────────────────────
+// GET /api/v1/analytics/google-analytics?period=30d&propertyId=...
+router.get('/google-analytics', AnalyticsController.googleAnalytics as never);
 
 export default router;

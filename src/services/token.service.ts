@@ -36,6 +36,7 @@ export class TokenService {
       data: {
         id: sessionId,
         userId,
+        token: uuidv4(),
         refreshToken,
         expiresAt,
         ipAddress: ipAddress ?? null,

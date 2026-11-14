@@ -1,95 +1,153 @@
-import prisma from '../config/database';
-import { getDateRange, getPreviousPeriod } from '../utils/date';
-import { YouTubeAnalyticsService } from '../integrations/google/youtube-analytics';
-import { GoogleAnalyticsService } from '../integrations/google/google-analytics';
+import prisma from '../../config/database';
+import { logger } from '../../utils/logger';
+
+interface OverviewData {
+  period: { startDate: string; endDate: string; label: string };
+  youtube: {
+    connected: boolean;
+    channels: number;
+    subscribers: number;
+    views: number;
+    viewsGrowth: number | null;
+    watchTimeHours: number;
+    subscribersGained: number;
+    subscribersGainedGrowth: number | null;
+    estimatedRevenue: number | null;
+    revenueNote: string | null;
+  };
+  googleAnalytics: {
+    connected: boolean;
+    properties: number;
+    sessions: number;
+    sessionsGrowth: number | null;
+    activeUsers: number;
+  };
+  adSense: { connected: boolean };
+  searchConsole: { connected: boolean };
+  lastSyncAt: string | null;
+  reportingNote: string;
+}
 
 export class OverviewAnalytics {
-  static async getOverview(userId: string, period = '30d') {
-    const { startDate, endDate } = getDateRange(period as Parameters<typeof getDateRange>[0]);
-    const { startDate: prevStart, endDate: prevEnd } = getPreviousPeriod(startDate, endDate);
+  static async getOverview(userId: string, period: string): Promise<OverviewData> {
+    const now = new Date();
+    let startDate: Date;
 
-    const accounts = await prisma.connectedAccount.findMany({
-      where: { userId, status: 'active' },
-      include: { youtubeChannels: true, gaProperties: true },
+    switch (period) {
+      case '7d':
+        startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        break;
+      case '30d':
+        startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+        break;
+      case '90d':
+        startDate = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+        break;
+      default:
+        startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    }
+
+    // ── YouTube ──────────────────────────────────────────────────────────────
+    const youtubeAccounts = await prisma.connectedAccount.findMany({
+      where: { userId, provider: 'YOUTUBE', status: 'active' },
+      select: { id: true },
     });
 
-    const ytAccounts = accounts.filter(a => a.provider === 'youtube-data');
-    const gaAccounts = accounts.filter(a => a.provider === 'google-analytics');
+    let youtubeData = {
+      connected: youtubeAccounts.length > 0,
+      channels: 0,
+      subscribers: 0,
+      views: 0,
+      viewsGrowth: null as number | null,
+      watchTimeHours: 0,
+      subscribersGained: 0,
+      subscribersGainedGrowth: null as number | null,
+      estimatedRevenue: null as number | null,
+      revenueNote: null as string | null,
+    };
 
-    // YouTube totals
-    const channels = await prisma.youTubeChannel.findMany({
-      where: { connectedAccountId: { in: ytAccounts.map(a => a.id) } },
+    if (youtubeAccounts.length > 0) {
+      const accountIds = youtubeAccounts.map(a => a.id);
+      const channels = await prisma.youTubeChannel.findMany({
+        where: { connectedAccountId: { in: accountIds } },
+      });
+
+      const channelIds = channels.map(c => c.channelId);
+      const metrics = await prisma.youTubeChannelMetric.findMany({
+        where: { channelId: { in: channelIds }, date: { gte: startDate } },
+      });
+
+      youtubeData.channels = channels.length;
+      youtubeData.subscribers = channels.reduce((sum, c) => sum + Number(c.subscriberCount || 0), 0);
+      youtubeData.views = metrics.reduce((sum, m) => sum + (m.views || 0), 0);
+      youtubeData.watchTimeHours = Math.round(metrics.reduce((sum, m) => sum + (m.watchTimeMinutes || 0), 0) / 60);
+      youtubeData.subscribersGained = metrics.reduce((sum, m) => sum + (m.subscribersGained || 0), 0);
+      youtubeData.estimatedRevenue = metrics.some(m => m.estimatedRevenue !== null)
+        ? metrics.reduce((sum, m) => sum + (m.estimatedRevenue || 0), 0)
+        : null;
+      youtubeData.revenueNote = youtubeData.estimatedRevenue === null
+        ? 'Revenue data requires monetization permission'
+        : null;
+    }
+
+    // ── Google Analytics ─────────────────────────────────────────────────────
+    const gaAccounts = await prisma.connectedAccount.findMany({
+      where: { userId, provider: 'GOOGLE_ANALYTICS', status: 'active' },
+      select: { id: true },
     });
 
-    const channelIds = channels.map(c => c.channelId);
-    const ytMetrics = await prisma.youTubeChannelMetric.findMany({
-      where: { channelId: { in: channelIds }, date: { gte: startDate, lte: endDate } },
-    });
-    const ytPrevMetrics = await prisma.youTubeChannelMetric.findMany({
-      where: { channelId: { in: channelIds }, date: { gte: prevStart, lte: prevEnd } },
+    let gaData = {
+      connected: gaAccounts.length > 0,
+      properties: 0,
+      sessions: 0,
+      sessionsGrowth: null as number | null,
+      activeUsers: 0,
+    };
+
+    if (gaAccounts.length > 0) {
+      const accountIds = gaAccounts.map(a => a.id);
+      const properties = await prisma.googleAnalyticsProperty.findMany({
+        where: { connectedAccountId: { in: accountIds } },
+      });
+
+      const propIds = properties.map(p => p.propertyId);
+      const metrics = await prisma.googleAnalyticsMetric.findMany({
+        where: { propertyId: { in: propIds }, date: { gte: startDate } },
+      });
+
+      gaData.properties = properties.length;
+      gaData.sessions = metrics.reduce((sum, m) => sum + (m.sessions || 0), 0);
+      gaData.activeUsers = metrics.reduce((sum, m) => sum + (m.users || 0), 0);
+    }
+
+    // ── Other ────────────────────────────────────────────────────────────────
+    const adsenseConnected = await prisma.connectedAccount.findFirst({
+      where: { userId, provider: 'GOOGLE_ADSENSE', status: 'active' },
     });
 
-    const ytSum = (key: keyof typeof ytMetrics[0]) => ytMetrics.reduce((s, m) => s + ((m[key] as number | null) ?? 0), 0);
-    const ytPrevSum = (key: keyof typeof ytPrevMetrics[0]) => ytPrevMetrics.reduce((s, m) => s + ((m[key] as number | null) ?? 0), 0);
-
-    const totalViews = ytSum('views');
-    const prevViews = ytPrevSum('views');
-    const totalSubs = channels.reduce((s, c) => s + (c.subscriberCount ?? 0), 0);
-    const totalWatchMin = ytSum('estimatedMinutesWatched');
-    const hasRevenue = ytMetrics.some(m => m.estimatedRevenue !== null);
-    const totalRevenue = hasRevenue ? ytSum('estimatedRevenue') : null;
-    const subsGained = ytSum('subscribersGained');
-    const prevSubsGained = ytPrevSum('subscribersGained');
-
-    // GA totals
-    const gaProperties = await prisma.googleAnalyticsProperty.findMany({
-      where: { connectedAccountId: { in: gaAccounts.map(a => a.id) } },
+    const searchConsoleConnected = await prisma.connectedAccount.findFirst({
+      where: { userId, provider: 'GOOGLE_SEARCH_CONSOLE', status: 'active' },
     });
-    const gaMetrics = await prisma.googleAnalyticsMetric.findMany({
-      where: { propertyId: { in: gaProperties.map(p => p.propertyId) }, date: { gte: startDate, lte: endDate } },
-    });
-    const gaPrevMetrics = await prisma.googleAnalyticsMetric.findMany({
-      where: { propertyId: { in: gaProperties.map(p => p.propertyId) }, date: { gte: prevStart, lte: prevEnd } },
-    });
-    const gaSum = (key: keyof typeof gaMetrics[0]) => gaMetrics.reduce((s, m) => s + ((m[key] as number | null) ?? 0), 0);
-    const gaPrevSum = (key: keyof typeof gaPrevMetrics[0]) => gaPrevMetrics.reduce((s, m) => s + ((m[key] as number | null) ?? 0), 0);
 
-    const totalSessions = gaSum('sessions');
-    const prevSessions = gaPrevSum('sessions');
-    const totalGaUsers = gaSum('activeUsers');
-
-    const growthPct = (curr: number, prev: number) =>
-      prev === 0 ? null : Math.round(((curr - prev) / prev) * 1000) / 10;
+    // Last sync
+    const lastSync = await prisma.connectedAccount.findFirst({
+      where: { userId, lastSyncAt: { not: null } },
+      orderBy: { lastSyncAt: 'desc' },
+      select: { lastSyncAt: true },
+    });
 
     return {
-      period: { startDate, endDate, label: period },
-      youtube: {
-        connected: ytAccounts.length > 0,
-        channels: channels.length,
-        subscribers: totalSubs,
-        views: totalViews,
-        viewsGrowth: growthPct(totalViews, prevViews),
-        watchTimeHours: Math.round(totalWatchMin / 60),
-        subscribersGained: subsGained,
-        subscribersGainedGrowth: growthPct(subsGained, prevSubsGained),
-        estimatedRevenue: totalRevenue,
-        revenueNote: hasRevenue ? 'Estimated revenue. Finalized in YouTube Studio.' : null,
+      period: {
+        startDate: startDate.toISOString(),
+        endDate: now.toISOString(),
+        label: period,
       },
-      googleAnalytics: {
-        connected: gaAccounts.length > 0,
-        properties: gaProperties.length,
-        sessions: totalSessions,
-        sessionsGrowth: growthPct(totalSessions, prevSessions),
-        activeUsers: totalGaUsers,
-      },
-      adSense: { connected: accounts.some(a => a.provider === 'adsense') },
-      searchConsole: { connected: accounts.some(a => a.provider === 'search-console') },
-      lastSyncAt: accounts.reduce<string | null>((latest, a) => {
-        if (!a.lastSyncAt) return latest;
-        const t = a.lastSyncAt.toISOString();
-        return !latest || t > latest ? t : latest;
-      }, null),
-      reportingNote: 'Analytics data may be delayed up to 48 hours by Google reporting systems.',
+      youtube: youtubeData,
+      googleAnalytics: gaData,
+      adSense: { connected: !!adsenseConnected },
+      searchConsole: { connected: !!searchConsoleConnected },
+      lastSyncAt: lastSync?.lastSyncAt?.toISOString() ?? null,
+      reportingNote: 'YouTube data may have 24-48h delay. GA4 data may have 24h delay.',
     };
   }
 }
