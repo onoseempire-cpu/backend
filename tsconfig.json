@@ -1,8 +1,11 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "module": "CommonJS",
-    "lib": ["ES2022"],
+    "module": "Node16",
+    "moduleResolution": "Node16",
+    "lib": [
+      "ES2022"
+    ],
     "declaration": true,
     "declarationMap": true,
     "sourceMap": true,
@@ -16,39 +19,79 @@
     "strictPropertyInitialization": false,
     "noImplicitThis": false,
     "alwaysStrict": false,
-    "noUnusedLocals": false,
+    "noUnusedLocals": true,
     "noUnusedParameters": false,
-    "noImplicitReturns": false,
+    "noImplicitReturns": true,
     "noFallthroughCasesInSwitch": true,
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
     "resolveJsonModule": true,
-    "moduleResolution": "node16",
+    "moduleResolution": "Node16",
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
-    "types": ["node"],
+    "types": [
+      "node"
+    ],
     "baseUrl": ".",
     "paths": {
-      "@config/*": ["./src/config/*"],
-      "@controllers/*": ["./src/controllers/*"],
-      "@routes/*": ["./src/routes/*"],
-      "@middleware/*": ["./src/middleware/*"],
-      "@services/*": ["./src/services/*"],
-      "@integrations/*": ["./src/integrations/*"],
-      "@analytics/*": ["./src/analytics/*"],
-      "@ai/*": ["./src/ai/*"],
-      "@indexer/*": ["./src/indexer/*"],
-      "@crawler/*": ["./src/crawler/*"],
-      "@workers/*": ["./src/workers/*"],
-      "@jobs/*": ["./src/jobs/*"],
-      "@database/*": ["./src/database/*"],
-      "@sockets/*": ["./src/sockets/*"],
-      "@utils/*": ["./src/utils/*"],
-      "@types/*": ["./src/types/*"]
+      "@config/*": [
+        "./src/config/*"
+      ],
+      "@controllers/*": [
+        "./src/controllers/*"
+      ],
+      "@routes/*": [
+        "./src/routes/*"
+      ],
+      "@middleware/*": [
+        "./src/middleware/*"
+      ],
+      "@services/*": [
+        "./src/services/*"
+      ],
+      "@integrations/*": [
+        "./src/integrations/*"
+      ],
+      "@analytics/*": [
+        "./src/analytics/*"
+      ],
+      "@ai/*": [
+        "./src/ai/*"
+      ],
+      "@indexer/*": [
+        "./src/indexer/*"
+      ],
+      "@crawler/*": [
+        "./src/crawler/*"
+      ],
+      "@workers/*": [
+        "./src/workers/*"
+      ],
+      "@jobs/*": [
+        "./src/jobs/*"
+      ],
+      "@database/*": [
+        "./src/database/*"
+      ],
+      "@sockets/*": [
+        "./src/sockets/*"
+      ],
+      "@utils/*": [
+        "./src/utils/*"
+      ],
+      "@types/*": [
+        "./src/types/*"
+      ]
     }
   },
-  "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist", "**/*.test.ts"]
+  "include": [
+    "src/**/*"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "**/*.test.ts"
+  ]
 }
