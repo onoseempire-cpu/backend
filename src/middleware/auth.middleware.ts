@@ -4,16 +4,18 @@ import { prisma } from '../database/prisma';
 import { unauthorizedResponse } from '../utils/response';
 import config from '../config/app.config';
 
-export interface AuthenticatedRequestUser {
-  id: string;
-  userId: string;
-  email: string;
-  name?: string;
-  role?: string;
-}
-
 export interface AuthenticatedRequest extends Request {
-  user?: AuthenticatedRequestUser;
+  body: any;
+  query: any;
+  params: any;
+  headers: any;
+  user?: {
+    id: string;
+    userId: string;
+    email: string;
+    name?: string;
+    role?: string;
+  };
 }
 
 interface JwtPayload {
@@ -27,23 +29,27 @@ interface JwtPayload {
  */
 export const authenticate = async (
   req: AuthenticatedRequest,
-  _res: Response,
+  res: Response,
   next: NextFunction
 ): Promise<void> => {
   const authHeader = req.headers.authorization;
 
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    _res.status(401).json(unauthorizedResponse('No token provided'));
+    res.status(401).json({ success: false, error: { code: 'NO_TOKEN', message: 'No token provided' } });
     return;
   }
 
   const token = authHeader.split(' ')[1];
 
   try {
-    const decoded = jwt.verify(token, config.jwt.accessSecret) as JwtPayload;
+    const decoded = jwt.verify(token, config.jwt.accessSecret) as {
+      userId: string;
+      type: 'access' | 'refresh';
+      sessionId?: string;
+    };
 
     if (decoded.type !== 'access') {
-      _res.status(401).json(unauthorizedResponse('Invalid token type'));
+      res.status(401).json({ success: false, error: { code: 'INVALID_TOKEN_TYPE', message: 'Invalid token type' } });
       return;
     }
 
@@ -56,7 +62,7 @@ export const authenticate = async (
     });
 
     if (!session) {
-      _res.status(401).json(unauthorizedResponse('Session expired or invalid'));
+      res.status(401).json({ success: false, error: { code: 'SESSION_EXPIRED', message: 'Session expired or invalid' } });
       return;
     }
 
@@ -65,7 +71,7 @@ export const authenticate = async (
     });
 
     if (!user || !user.isActive) {
-      _res.status(401).json(unauthorizedResponse('User not found or inactive'));
+      res.status(401).json({ success: false, error: { code: 'USER_NOT_FOUND', message: 'User not found or inactive' } });
       return;
     }
 
@@ -79,7 +85,7 @@ export const authenticate = async (
 
     next();
   } catch (error) {
-    _res.status(401).json(unauthorizedResponse('Invalid token'));
+    res.status(401).json({ success: false, error: { code: 'INVALID_TOKEN', message: 'Invalid token' } });
   }
 };
 
@@ -93,7 +99,7 @@ export const authenticateJWT = authenticate;
  */
 export const optionalAuth = async (
   req: AuthenticatedRequest,
-  _res: Response,
+  res: Response,
   next: NextFunction
 ): Promise<void> => {
   const authHeader = req.headers.authorization;
@@ -106,7 +112,11 @@ export const optionalAuth = async (
   const token = authHeader.split(' ')[1];
 
   try {
-    const decoded = jwt.verify(token, config.jwt.accessSecret) as JwtPayload;
+    const decoded = jwt.verify(token, config.jwt.accessSecret) as {
+      userId: string;
+      type: 'access' | 'refresh';
+      sessionId?: string;
+    };
 
     if (decoded.type === 'access') {
       const session = await prisma.session.findFirst({

@@ -1,7 +1,7 @@
 import { google } from 'googleapis';
 import { getAuthenticatedClient } from './oauth';
-import prisma from '../../config/database';
-import { logger } from '../../utils/logger';
+import prisma from '../config/database';
+import { logger } from '../utils/logger';
 
 export class SearchConsoleService {
   static async syncSearchAnalytics(connectedAccountId: string, days = 30): Promise<void> {

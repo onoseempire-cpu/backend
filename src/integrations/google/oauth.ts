@@ -1,5 +1,5 @@
 import { google } from 'googleapis';
-import prisma from '../../config/database';
+import prisma from '../config/database';
 import {
   createYouTubeDataClient, createYouTubeAnalyticsClient,
   createYouTubeReportingClient, createAdSenseClient,
@@ -9,7 +9,7 @@ import {
 import { EncryptionService } from '../../services/encryption.service';
 import { NotificationService } from '../../services/notification.service';
 import { AppError } from '../../middleware/error-handler';
-import { logger } from '../../utils/logger';
+import { logger } from '../utils/logger';
 import crypto from 'crypto';
 
 // ── In-memory CSRF state store ─────────────────────────────────────────────────

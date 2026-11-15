@@ -1,7 +1,7 @@
 import { google } from 'googleapis';
 import { getAuthenticatedClient } from './oauth';
-import prisma from '../../config/database';
-import { logger } from '../../utils/logger';
+import prisma from '../config/database';
+import { logger } from '../utils/logger';
 
 export class GoogleAnalyticsService {
   static async syncProperties(connectedAccountId: string): Promise<void> {

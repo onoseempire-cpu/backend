@@ -1,5 +1,5 @@
 import { google } from 'googleapis';
-import { logger } from '../../utils/logger';
+import { logger } from '../utils/logger';
 
 export class AdSenseService {
   static async syncEarnings(connectedAccountId: string, days = 30): Promise<void> {
