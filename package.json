@@ -4,6 +4,9 @@
   "description": "Program Maker Analytical Viewer Backend - Real-time analytics infrastructure",
   "main": "dist/server.js",
   "scripts": {
+    "postinstall": "node scripts/prepare-db.js",
+    "prebuild": "node scripts/prepare-db.js",
+    "prestart": "node scripts/prepare-db.js",
     "build": "tsc",
     "start": "node dist/server.js",
     "dev": "ts-node-dev --respawn --transpile-only src/server.ts",

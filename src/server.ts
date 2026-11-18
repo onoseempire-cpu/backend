@@ -12,7 +12,8 @@ async function startServer() {
   try {
     // Test database connection
     await prisma.$connect();
-    logger.info('✅ Database connected (SQLite)');
+    const isPg = process.env.DATABASE_URL?.startsWith('postgres');
+    logger.info(`✅ Database connected (${isPg ? 'PostgreSQL' : 'SQLite'})`);
 
     // Create HTTP server
     const httpServer = http.createServer(app);

@@ -1,6 +1,5 @@
 generator client {
   provider = "prisma-client-js"
-  version = "5.14.0"
 }
 
 datasource db {
