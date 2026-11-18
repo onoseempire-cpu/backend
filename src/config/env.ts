@@ -4,16 +4,25 @@ import path from 'path';
 
 dotenv.config({ path: path.resolve(process.cwd(), '.env') });
 
-// Sanitize DATABASE_URL (strip any outer quotes from deployment UI like Render)
-if (process.env.DATABASE_URL) {
-  let cleaned = process.env.DATABASE_URL.trim().replace(/^["']|["']$/g, '').trim();
-  if (cleaned.startsWith('sqlite:')) {
-    cleaned = 'file:' + cleaned.slice(7);
+// Sanitize DATABASE_URL (strip outer quotes, normalize protocol, or fallback to file:./pmav-database.db if placeholder)
+function sanitizeDatabaseUrl(raw?: string): string {
+  if (!raw) return 'file:./pmav-database.db';
+  let url = raw.trim().replace(/^["']|["']$/g, '').trim();
+  if (!url) return 'file:./pmav-database.db';
+  if (url.startsWith('postgres://') || url.startsWith('postgresql://')) {
+    return url;
   }
-  process.env.DATABASE_URL = cleaned;
-} else {
-  process.env.DATABASE_URL = 'file:./pmav-database.db';
+  if (url.startsWith('sqlite:')) {
+    return 'file:' + url.slice(7);
+  }
+  if (url.startsWith('file:')) {
+    return url;
+  }
+  // If it's a placeholder (like <auto-provided-...>), fallback to local sqlite
+  return 'file:./pmav-database.db';
 }
+
+process.env.DATABASE_URL = sanitizeDatabaseUrl(process.env.DATABASE_URL);
 
 const EnvSchema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),

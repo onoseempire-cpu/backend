@@ -19,17 +19,25 @@ let schema = fs.readFileSync(schemaPath, 'utf8');
 // Also remove any invalid "version" line in generator if present
 schema = schema.replace(/\s*version\s*=\s*"[^"]*"/g, '');
 
-// Sanitize DATABASE_URL (handle quotes from Render UI, empty strings, and sqlite prefixes)
-let dbUrl = (process.env.DATABASE_URL || '').trim().replace(/^["']|["']$/g, '').trim();
-if (!dbUrl) {
-  dbUrl = 'file:./pmav-database.db';
-  process.env.DATABASE_URL = dbUrl;
-} else if (dbUrl.startsWith('sqlite:')) {
-  dbUrl = 'file:' + dbUrl.slice(7);
-  process.env.DATABASE_URL = dbUrl;
-} else {
-  process.env.DATABASE_URL = dbUrl;
+function sanitizeDatabaseUrl(raw) {
+  if (!raw) return 'file:./pmav-database.db';
+  let url = raw.trim().replace(/^["']|["']$/g, '').trim();
+  if (!url) return 'file:./pmav-database.db';
+  if (url.startsWith('postgres://') || url.startsWith('postgresql://')) {
+    return url;
+  }
+  if (url.startsWith('sqlite:')) {
+    return 'file:' + url.slice(7);
+  }
+  if (url.startsWith('file:')) {
+    return url;
+  }
+  console.warn(`[DB Setup] Notice: '${raw}' is not a valid URL. Defaulting to file:./pmav-database.db`);
+  return 'file:./pmav-database.db';
 }
+
+const dbUrl = sanitizeDatabaseUrl(process.env.DATABASE_URL);
+process.env.DATABASE_URL = dbUrl;
 
 const isPostgres = dbUrl.startsWith('postgres://') || dbUrl.startsWith('postgresql://');
 const targetProvider = isPostgres ? 'postgresql' : 'sqlite';
