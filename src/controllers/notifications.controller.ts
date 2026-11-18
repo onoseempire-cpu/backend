@@ -1,4 +1,4 @@
-import { Request, Response, NextFunction } from 'express';
+import { Response, NextFunction } from 'express';
 import { NotificationService } from '../services/notification.service';
 import { sendSuccess } from '../utils/api-response';
 import { getPaginationParams } from '../utils/pagination';

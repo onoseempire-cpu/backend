@@ -1,15 +1,8 @@
 import { google } from 'googleapis';
-import prisma from '../config/database';
+import prisma from '../../config/database';
 import {
-  createYouTubeDataClient, createYouTubeAnalyticsClient,
-  createYouTubeReportingClient, createAdSenseClient,
-  createGoogleAnalyticsClient, createSearchConsoleClient,
   OAUTH_SCOPES, IntegrationProvider, getClientForProvider,
 } from '../../config/oauth';
-import { EncryptionService } from '../../services/encryption.service';
-import { NotificationService } from '../../services/notification.service';
-import { AppError } from '../../middleware/error-handler';
-import { logger } from '../utils/logger';
 import crypto from 'crypto';
 
 // ── In-memory CSRF state store ─────────────────────────────────────────────────
@@ -112,7 +105,7 @@ export const disconnectAccount = async (userId: string, accountId: string): Prom
   try {
     const credential = await prisma.oAuthCredential.findUnique({ where: { connectedAccountId: accountId } });
     if (credential?.accessToken) {
-      const client = (await import('../../config/oauth')).createYouTubeDataClient();
+      const client = (await import('../../config/oauth.js')).createYouTubeDataClient();
       client.setCredentials({ access_token: credential.accessToken });
       await client.revokeCredentials().catch(() => {});
     }

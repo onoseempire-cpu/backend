@@ -28,34 +28,34 @@ const EnvSchema = z.object({
   SMTP_FROM: z.string().default('PMAV System <noreply@pmav.local>'),
 
   // YouTube Data API v3 - for basic channel/video info
-  YOUTUBE_DATA_CLIENT_ID: z.string(),
-  YOUTUBE_DATA_CLIENT_SECRET: z.string(),
-  YOUTUBE_DATA_REDIRECT_URI: z.string(),
+  YOUTUBE_DATA_CLIENT_ID: z.string().optional().default(''),
+  YOUTUBE_DATA_CLIENT_SECRET: z.string().optional().default(''),
+  YOUTUBE_DATA_REDIRECT_URI: z.string().optional().default('http://localhost:5000/api/v1/integrations/youtube-data/callback'),
 
   // YouTube Analytics API - for metrics (revenue, watch time, etc.)
-  YOUTUBE_ANALYTICS_CLIENT_ID: z.string(),
-  YOUTUBE_ANALYTICS_CLIENT_SECRET: z.string(),
-  YOUTUBE_ANALYTICS_REDIRECT_URI: z.string(),
+  YOUTUBE_ANALYTICS_CLIENT_ID: z.string().optional().default(''),
+  YOUTUBE_ANALYTICS_CLIENT_SECRET: z.string().optional().default(''),
+  YOUTUBE_ANALYTICS_REDIRECT_URI: z.string().optional().default('http://localhost:5000/api/v1/integrations/youtube-analytics/callback'),
 
   // YouTube Reporting API - for detailed monetization reports
-  YOUTUBE_REPORTING_CLIENT_ID: z.string(),
-  YOUTUBE_REPORTING_CLIENT_SECRET: z.string(),
-  YOUTUBE_REPORTING_REDIRECT_URI: z.string(),
+  YOUTUBE_REPORTING_CLIENT_ID: z.string().optional().default(''),
+  YOUTUBE_REPORTING_CLIENT_SECRET: z.string().optional().default(''),
+  YOUTUBE_REPORTING_REDIRECT_URI: z.string().optional().default('http://localhost:5000/api/v1/integrations/youtube-reporting/callback'),
 
   // Google AdSense API - for AdSense earnings
-  GOOGLE_ADSENSE_CLIENT_ID: z.string(),
-  GOOGLE_ADSENSE_CLIENT_SECRET: z.string(),
-  GOOGLE_ADSENSE_REDIRECT_URI: z.string(),
+  GOOGLE_ADSENSE_CLIENT_ID: z.string().optional().default(''),
+  GOOGLE_ADSENSE_CLIENT_SECRET: z.string().optional().default(''),
+  GOOGLE_ADSENSE_REDIRECT_URI: z.string().optional().default('http://localhost:5000/api/v1/integrations/adsense/callback'),
 
   // Google Analytics 4 Data API - for website analytics
-  GOOGLE_ANALYTICS_CLIENT_ID: z.string(),
-  GOOGLE_ANALYTICS_CLIENT_SECRET: z.string(),
-  GOOGLE_ANALYTICS_REDIRECT_URI: z.string(),
+  GOOGLE_ANALYTICS_CLIENT_ID: z.string().optional().default(''),
+  GOOGLE_ANALYTICS_CLIENT_SECRET: z.string().optional().default(''),
+  GOOGLE_ANALYTICS_REDIRECT_URI: z.string().optional().default('http://localhost:5000/api/v1/integrations/google-analytics/callback'),
 
   // Google Search Console API - for SEO data
-  GOOGLE_SEARCH_CONSOLE_CLIENT_ID: z.string(),
-  GOOGLE_SEARCH_CONSOLE_CLIENT_SECRET: z.string(),
-  GOOGLE_SEARCH_CONSOLE_REDIRECT_URI: z.string(),
+  GOOGLE_SEARCH_CONSOLE_CLIENT_ID: z.string().optional().default(''),
+  GOOGLE_SEARCH_CONSOLE_CLIENT_SECRET: z.string().optional().default(''),
+  GOOGLE_SEARCH_CONSOLE_REDIRECT_URI: z.string().optional().default('http://localhost:5000/api/v1/integrations/search-console/callback'),
 
   OPENAI_API_KEY: z.string().optional(),
   GEMINI_API_KEY: z.string().optional(),

@@ -1,4 +1,4 @@
-import { Request, Response, NextFunction } from 'express';
+import { Response, NextFunction } from 'express';
 import { z } from 'zod';
 import { parseQuery } from '../ai/search/query-parser';
 import { executeQuery } from '../ai/search/query-executor';

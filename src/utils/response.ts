@@ -1,4 +1,4 @@
-import { Response } from 'express';
+// Response helper utilities
 
 export const successResponse = <T>(
   data: T,

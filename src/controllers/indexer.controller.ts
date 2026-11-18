@@ -1,4 +1,4 @@
-import { Request, Response, NextFunction } from 'express';
+import { Response, NextFunction } from 'express';
 import { IndexerService } from '../indexer/indexer.service';
 import { sendSuccess } from '../utils/api-response';
 import type { AuthenticatedRequest } from '../middleware/auth.middleware';

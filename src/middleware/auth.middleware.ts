@@ -1,7 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { prisma } from '../database/prisma';
-import { unauthorizedResponse } from '../utils/response';
 import config from '../config/app.config';
 
 export interface AuthenticatedRequest extends Request {
@@ -16,12 +15,6 @@ export interface AuthenticatedRequest extends Request {
     name?: string;
     role?: string;
   };
-}
-
-interface JwtPayload {
-  userId: string;
-  type: 'access' | 'refresh';
-  sessionId?: string;
 }
 
 /**

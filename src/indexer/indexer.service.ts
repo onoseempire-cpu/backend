@@ -1,6 +1,6 @@
 import prisma from '../config/database';
 import { logger } from '../utils/logger';
-import { EncryptionService } from '../services/encryption.service';
+
 
 interface IndexingProgress {
   jobId: string;
@@ -95,12 +95,12 @@ export class IndexerService {
         logs.push(`Indexing ${account.provider}...`);
 
         try {
-          const { getAuthenticatedClient } = await import('../integrations/google/oauth');
+          const { getAuthenticatedClient: _getAuth } = await import('../integrations/google/oauth');
           const { YouTubeDataService } = await import('../integrations/google/youtube-data');
           const { YouTubeAnalyticsService } = await import('../integrations/google/youtube-analytics');
           const { GoogleAnalyticsService } = await import('../integrations/google/google-analytics');
 
-          const client = await getAuthenticatedClient(account.id);
+          await _getAuth(account.id); // Ensure credentials are valid
 
           if (account.provider === 'YOUTUBE' || account.provider === 'youtubeData') {
             await YouTubeDataService.syncChannelInfo(account.id);

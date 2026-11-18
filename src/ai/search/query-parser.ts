@@ -153,7 +153,6 @@ const hasCompare = (q: string) =>
 // ── Main export ───────────────────────────────────────────────────────────────
 
 export const parseQuery = (query: string): ParsedQuery => {
-  const lq = query.toLowerCase();
   const { intent, confidence } = matchIntent(query);
 
   let source = matchSource(query);

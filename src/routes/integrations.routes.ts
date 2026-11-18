@@ -1,4 +1,4 @@
-import { Router, Request, Response, NextFunction } from 'express';
+import { Router } from 'express';
 import { IntegrationsController } from '../controllers';
 import { authenticateJWT } from '../middleware/auth.middleware';
 import { auditLog } from '../middleware/audit';

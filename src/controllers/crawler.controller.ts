@@ -1,4 +1,4 @@
-import { Request, Response, NextFunction } from 'express';
+import { Response, NextFunction } from 'express';
 import { CrawlerService } from '../crawler/crawler.service';
 import { sendSuccess, sendError } from '../utils/api-response';
 import type { AuthenticatedRequest } from '../middleware/auth.middleware';

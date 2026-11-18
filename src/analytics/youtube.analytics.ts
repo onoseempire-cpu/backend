@@ -1,5 +1,5 @@
 import prisma from '../config/database';
-import { YouTubeChannelSummary, YouTubeMetricTotals, YouTubeChartPoint, YouTubeTrend, YouTubeChannelAnalytics } from '../types/api';
+import { YouTubeChannelSummary, YouTubeMetricTotals, YouTubeChartPoint, YouTubeChannelAnalytics } from '../types/api';
 import { TrendProcessor } from './processors/trend.processor';
 
 export class YouTubeAnalyticsEngine {
@@ -29,7 +29,6 @@ export class YouTubeAnalyticsEngine {
 
     if (accounts.length === 0) return [];
 
-    const accountIds = accounts.map(a => a.id);
     let channels = await prisma.youTubeChannel.findMany({
       where: { connectedAccountId: { in: accounts.map(a => a.id) } },
     });
@@ -116,8 +115,7 @@ export class YouTubeAnalyticsEngine {
 
     if (accounts.length === 0) return [];
 
-    const accountIds = accounts.map(a => a.id);
-    const where: any = { channel: { connectedAccountId: { in: accountIds } } };
+    const where: any = { channel: { connectedAccountId: { in: accounts.map(a => a.id) } } };
     if (channelId) where.channelId = channelId;
 
     const videos = await prisma.youTubeVideo.findMany({

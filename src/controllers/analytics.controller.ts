@@ -1,4 +1,4 @@
-import { Request, Response, NextFunction } from 'express';
+import { Response, NextFunction } from 'express';
 import { OverviewAnalytics } from '../analytics/overview.analytics';
 import { YouTubeAnalyticsEngine } from '../analytics/youtube.analytics';
 import { GoogleAnalyticsEngine } from '../analytics/google-analytics.analytics';

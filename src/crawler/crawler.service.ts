@@ -133,12 +133,12 @@ export class CrawlerService {
           logs.push(`Syncing ${account.provider}...`);
 
           // Sync based on provider
-          const { getAuthenticatedClient } = await import('../integrations/google/oauth');
+          const { getAuthenticatedClient: _getAuth } = await import('../integrations/google/oauth');
           const { YouTubeDataService } = await import('../integrations/google/youtube-data');
           const { YouTubeAnalyticsService } = await import('../integrations/google/youtube-analytics');
           const { GoogleAnalyticsService } = await import('../integrations/google/google-analytics');
 
-          const client = await getAuthenticatedClient(account.id);
+          await _getAuth(account.id); // Ensure credentials are valid before sync
 
           if (account.provider === 'YOUTUBE' || account.provider === 'youtubeData') {
             await YouTubeDataService.syncChannelInfo(account.id);

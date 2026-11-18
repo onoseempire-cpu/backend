@@ -1,5 +1,4 @@
 import prisma from '../config/database';
-import { logger } from '../utils/logger';
 
 interface OverviewData {
   period: { startDate: string; endDate: string; label: string };

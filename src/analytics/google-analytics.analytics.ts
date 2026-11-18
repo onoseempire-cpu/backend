@@ -1,5 +1,4 @@
 import prisma from '../config/database';
-import { GAPropertySummary, GAMetricTotals, GAChartPoint, GAPropertyAnalytics } from '../types/api';
 
 export class GoogleAnalyticsEngine {
   static async getPropertyAnalytics(userId: string, period: string, propertyId?: string): Promise<any[]> {

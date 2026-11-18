@@ -31,7 +31,6 @@ export class TrendProcessor {
     const direction: TrendDirection = slope > 0.5 ? 'up' : slope < -0.5 ? 'down' : 'flat';
 
     // 7-day moving average
-    const windowSize = Math.min(7, n);
     const movingAverage = data.map((d, i) => {
       const start = Math.max(0, i - 7 + 1);
       const window = data.slice(start, i + 1).map(d => d.value);

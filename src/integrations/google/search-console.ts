@@ -1,7 +1,6 @@
 import { google } from 'googleapis';
 import { getAuthenticatedClient } from './oauth';
-import prisma from '../config/database';
-import { logger } from '../utils/logger';
+import { logger } from '../../utils/logger';
 
 export class SearchConsoleService {
   static async syncSearchAnalytics(connectedAccountId: string, days = 30): Promise<void> {
@@ -19,7 +18,7 @@ export class SearchConsoleService {
     for (const site of sites.siteEntry ?? []) {
       if (!site.siteUrl || site.permissionLevel !== 'siteOwner') continue;
 
-      const { data } = await searchconsole.searchanalytics.query({
+      const { data: _data } = await searchconsole.searchanalytics.query({
         siteUrl: site.siteUrl,
         requestBody: {
           startDate: formatDate(startDate),
