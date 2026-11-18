@@ -4,6 +4,17 @@ import path from 'path';
 
 dotenv.config({ path: path.resolve(process.cwd(), '.env') });
 
+// Sanitize DATABASE_URL (strip any outer quotes from deployment UI like Render)
+if (process.env.DATABASE_URL) {
+  let cleaned = process.env.DATABASE_URL.trim().replace(/^["']|["']$/g, '').trim();
+  if (cleaned.startsWith('sqlite:')) {
+    cleaned = 'file:' + cleaned.slice(7);
+  }
+  process.env.DATABASE_URL = cleaned;
+} else {
+  process.env.DATABASE_URL = 'file:./pmav-database.db';
+}
+
 const EnvSchema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   PORT: z.string().default('5000').transform(Number),

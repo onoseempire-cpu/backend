@@ -19,11 +19,22 @@ let schema = fs.readFileSync(schemaPath, 'utf8');
 // Also remove any invalid "version" line in generator if present
 schema = schema.replace(/\s*version\s*=\s*"[^"]*"/g, '');
 
-const dbUrl = (process.env.DATABASE_URL || '').trim();
+// Sanitize DATABASE_URL (handle quotes from Render UI, empty strings, and sqlite prefixes)
+let dbUrl = (process.env.DATABASE_URL || '').trim().replace(/^["']|["']$/g, '').trim();
+if (!dbUrl) {
+  dbUrl = 'file:./pmav-database.db';
+  process.env.DATABASE_URL = dbUrl;
+} else if (dbUrl.startsWith('sqlite:')) {
+  dbUrl = 'file:' + dbUrl.slice(7);
+  process.env.DATABASE_URL = dbUrl;
+} else {
+  process.env.DATABASE_URL = dbUrl;
+}
+
 const isPostgres = dbUrl.startsWith('postgres://') || dbUrl.startsWith('postgresql://');
 const targetProvider = isPostgres ? 'postgresql' : 'sqlite';
 
-console.log(`[DB Setup] Database type detected: ${isPostgres ? 'PostgreSQL' : 'SQLite'}`);
+console.log(`[DB Setup] Database type detected: ${isPostgres ? 'PostgreSQL' : 'SQLite'} (${dbUrl.slice(0, 15)}...)`);
 
 const providerMatch = schema.match(/datasource\s+db\s+\{[^}]*provider\s*=\s*"(sqlite|postgresql)"/s);
 const currentProvider = providerMatch ? providerMatch[1] : null;

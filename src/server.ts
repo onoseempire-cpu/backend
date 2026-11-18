@@ -48,8 +48,8 @@ async function startServer() {
     process.on('SIGTERM', () => shutdown('SIGTERM'));
     process.on('SIGINT', () => shutdown('SIGINT'));
 
-  } catch (err) {
-    logger.error('Failed to start server', { error: err });
+  } catch (err: any) {
+    logger.error(`Failed to start server: ${err?.message || err}`, { error: err });
     process.exit(1);
   }
 }
