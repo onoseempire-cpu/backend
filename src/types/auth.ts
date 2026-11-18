@@ -27,6 +27,10 @@ export interface AuthenticatedRequestWithUserId extends Request {
 
 // Legacy interface for backward compatibility
 export interface AuthenticatedRequest extends Request {
+  method: string;
+  path: string;
+  url: string;
+  ip: string;
   user: {
     userId: string;
     email: string;

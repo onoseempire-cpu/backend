@@ -4,6 +4,10 @@ import { prisma } from '../database/prisma';
 import config from '../config/app.config';
 
 export interface AuthenticatedRequest extends Request {
+  method: string;
+  path: string;
+  url: string;
+  ip: string;
   body: any;
   query: any;
   params: any;
